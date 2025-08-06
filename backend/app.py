@@ -16,6 +16,9 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from storage_manager import storage_manager, GoogleDriveStorageProvider
+from functools import wraps
+from flask import request, Response
+import os
 
 # JWT and auth
 from jose import JWTError, jwt
@@ -28,6 +31,53 @@ THETA_API_URL = os.getenv("THETA_API_URL", "https://ondemand.thetaedgecloud.com/
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 # Secret key for JWT signing
 JWT_SECRET = os.getenv("SECRET_KEY", "studybuddy_secret_key")
+
+# Demo configuration
+DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
+DEMO_CODES = [
+    os.getenv("DEMO_CODE_1", "INVESTOR_ACCESS_2024"),
+    os.getenv("DEMO_CODE_2", "POC_SHOWCASE_KEY"), 
+    os.getenv("DEMO_CODE_3", "STARTUP_DEMO_PASS")
+]
+
+# Basic authentication credentials
+BASIC_AUTH_USERNAME = os.getenv('BASIC_AUTH_USERNAME', 'admin')
+BASIC_AUTH_PASSWORD = os.getenv('BASIC_AUTH_PASSWORD', 'your-secure-password')
+
+def check_auth(username, password):
+    """Check if username/password combination is valid"""
+    return username == BASIC_AUTH_USERNAME and password == BASIC_AUTH_PASSWORD
+
+def authenticate():
+    """Send a 401 response that enables basic auth"""
+    return Response(
+        'Could not verify your access level for that URL.\n'
+        'You have to login with proper credentials', 401,
+        {'WWW-Authenticate': 'Basic realm="Login Required"'})
+
+def requires_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            return authenticate()
+        return f(*args, **kwargs)
+    return decorated
+
+# Apply basic auth to all routes except login/signup
+@app.before_request
+def require_basic_auth():
+    # Skip auth for login/signup endpoints
+    if request.endpoint in ['login', 'signup', 'google_login']:
+        return
+    
+    # Skip auth for static files and OPTIONS requests
+    if request.method == 'OPTIONS' or request.path.startswith('/static/'):
+        return
+    
+    auth = request.authorization
+    if not auth or not check_auth(auth.username, auth.password):
+        return authenticate()
 
 # Check if API key is available
 if not THETA_API_KEY:
@@ -720,6 +770,8 @@ def upload_file():
     # Start background processing
     def process_file_background():
         try:
+            print(f"[Background Processing] Starting processing for {filename}")
+            
             # Get file from storage for processing
             file_data = storage_provider.get_file(user, filename)
             if not file_data:
@@ -732,6 +784,7 @@ def upload_file():
                 temp_file_path = temp_file.name
             
             file_data.close()
+            print(f"[Background Processing] File saved to temp: {temp_file_path}")
             
             # Load or initialize user's indexed files list
             user_dir = os.path.join(books_dir, safe_filename(user))
@@ -749,33 +802,41 @@ def upload_file():
                 except:
                     indexed_files = []
             
+            print(f"[Background Processing] Processing file type: {filename.split('.')[-1]}")
+            
             splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
             new_docs = []
             text_blob = ""
             
             ext = filename.lower().rsplit('.', 1)[-1]
             if ext == "pdf":
+                print(f"[Background Processing] Processing PDF file")
                 loader = PyPDFLoader(temp_file_path)
                 pages = loader.load()
+                print(f"[Background Processing] PDF loaded with {len(pages)} pages")
                 new_docs.extend(splitter.split_documents(pages))
                 first_pages_text = [p.page_content for p in pages[:3]]
                 text_blob = "\n".join(first_pages_text)
             elif ext in ["jpg", "jpeg", "png"]:
+                print(f"[Background Processing] Processing image file with OCR")
                 text = pytesseract.image_to_string(Image.open(temp_file_path))
                 new_docs.extend(splitter.create_documents([text]))
                 text_blob = text
             elif ext in ["mp3", "wav", "m4a"]:
+                print(f"[Background Processing] Processing audio file with Whisper")
                 model = WhisperModel("base")
                 segments, info = model.transcribe(temp_file_path)
                 result_text = " ".join([seg.text for seg in segments])
                 new_docs.extend(splitter.create_documents([result_text]))
                 text_blob = result_text[:2000]
             elif ext == "docx":
+                print(f"[Background Processing] Processing Word document")
                 doc_obj = docx.Document(temp_file_path)
                 full_text = "\n".join([para.text for para in doc_obj.paragraphs])
                 new_docs.extend(splitter.create_documents([full_text]))
                 text_blob = full_text[:2000]
             elif ext in ["xlsx", "xls"]:
+                print(f"[Background Processing] Processing Excel file")
                 df = pd.read_excel(temp_file_path, engine="openpyxl" if ext == "xlsx" else "xlrd")
                 csv_text = df.to_csv(index=False)
                 new_docs.extend(splitter.create_documents([csv_text]))
@@ -784,19 +845,26 @@ def upload_file():
                 # Unsupported file type
                 raise Exception(f"Unsupported file type: {ext}")
             
+            print(f"[Background Processing] Created {len(new_docs)} document chunks")
+            
             # If new docs were successfully created, add to vectorstore
             if new_docs:
+                print(f"[Background Processing] Adding documents to vectorstore")
                 vs = load_vectorstore_for_user(user)
                 if vs is None:
                     # Create new FAISS vectorstore for user
+                    print(f"[Background Processing] Creating new vectorstore for user")
                     from langchain.vectorstores import FAISS
                     vs = FAISS.from_documents(new_docs, embeddings)
                 else:
                     # Add documents to existing vectorstore
+                    print(f"[Background Processing] Adding to existing vectorstore")
                     vs.add_documents(new_docs)
                 
                 if vs:
+                    print(f"[Background Processing] Saving vectorstore")
                     save_vectorstore_for_user(user, vs)
+                    print(f"[Background Processing] Vectorstore saved successfully")
             
             # Update indexed files list on disk (only for local storage)
             if not isinstance(storage_provider, GoogleDriveStorageProvider):
@@ -817,6 +885,7 @@ def upload_file():
                 print(f"[Temp file cleanup error] {e}")
             
             # Update chat with success message
+            print(f"[Background Processing] Processing completed successfully")
             summary = ""
             if text_blob:
                 snippet = (text_blob[:500] + "...") if len(text_blob) > 500 else text_blob
@@ -831,9 +900,11 @@ def upload_file():
             else:
                 conv.append(success_msg)
             save_conversation(user, "default")
+            print(f"[Background Processing] Success message updated in chat")
             
         except Exception as e:
-            print(f"[Background file processing error] {e}")
+            print(f"[Background Processing] Error processing file: {e}")
+            print(f"[Background Processing] Full error details: {type(e).__name__}: {str(e)}")
             # Update chat with error message
             error_msg = {"role": "assistant", "content": f"❌ Sorry, I couldn't process the file '{filename}'. Please try again or contact support."}
             
@@ -844,6 +915,7 @@ def upload_file():
             else:
                 conv.append(error_msg)
             save_conversation(user, "default")
+            print(f"[Background Processing] Error message updated in chat")
     
     # Start background processing thread
     thread = threading.Thread(target=process_file_background)
@@ -851,6 +923,39 @@ def upload_file():
     thread.start()
     
     return jsonify({"messages": [msg_user, msg_assistant]})
+
+@app.route("/api/upload/status", methods=["GET"])
+def get_upload_status():
+    """Get upload processing status for the current user"""
+    user = get_user_from_token()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    # Get the latest conversation to check processing status
+    conv = get_conversation(user, "default")
+    if not conv:
+        return jsonify({"status": "no_uploads"})
+    
+    # Check the last assistant message
+    last_assistant_msg = None
+    for msg in reversed(conv):
+        if msg["role"] == "assistant":
+            last_assistant_msg = msg
+            break
+    
+    if not last_assistant_msg:
+        return jsonify({"status": "no_uploads"})
+    
+    content = last_assistant_msg["content"]
+    
+    if "Processing your file" in content:
+        return jsonify({"status": "processing"})
+    elif "✅ Your file" in content and "has been successfully indexed" in content:
+        return jsonify({"status": "completed"})
+    elif "❌ Sorry, I couldn't process" in content:
+        return jsonify({"status": "failed"})
+    else:
+        return jsonify({"status": "unknown"})
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
@@ -1115,6 +1220,56 @@ def delete_document(filename):
         print(f"[Document Deletion Error] {e}")
         return jsonify({"error": "Failed to delete document"}), 500
 
+@app.route("/api/documents/clear-vectorstore", methods=["DELETE"])
+def clear_user_vectorstore():
+    """Clear user's entire vectorstore (delete all indexed documents)"""
+    user = get_user_from_token()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    try:
+        print(f"[Vectorstore Clear] User {user} requested vectorstore clear")
+        
+        # Clear vectorstore from cache
+        if user in vectorstores_cache:
+            del vectorstores_cache[user]
+            print(f"[Vectorstore Clear] Cleared from cache for user {user}")
+        
+        # Delete vectorstore files
+        user_vector_dir = os.path.join(vectorstores_dir, safe_filename(user))
+        if os.path.exists(user_vector_dir):
+            import shutil
+            shutil.rmtree(user_vector_dir)
+            print(f"[Vectorstore Clear] Deleted vectorstore directory for user {user}")
+        
+        # Clear indexed files list (for local storage compatibility)
+        user_dir = os.path.join(books_dir, safe_filename(user))
+        indexed_list_path = os.path.join(user_dir, "indexed_files.json")
+        if os.path.exists(indexed_list_path):
+            try:
+                with open(indexed_list_path, 'w') as idxf:
+                    json.dump({"indexed_files": []}, idxf)
+                print(f"[Vectorstore Clear] Cleared indexed files list for user {user}")
+            except Exception as e:
+                print(f"[Vectorstore Clear] Error clearing indexed files list: {e}")
+        
+        # Add confirmation message to chat
+        clear_msg = {"role": "assistant", "content": "🗑️ Your entire document knowledge base has been cleared. All indexed documents have been removed from your vectorstore. You can upload new documents to rebuild your knowledge base."}
+        
+        conv = get_conversation(user, "default")
+        conv.append(clear_msg)
+        save_conversation(user, "default")
+        
+        print(f"[Vectorstore Clear] Successfully cleared vectorstore for user {user}")
+        return jsonify({
+            "success": True,
+            "message": "Vectorstore cleared successfully. All indexed documents have been removed."
+        })
+        
+    except Exception as e:
+        print(f"[Vectorstore Clear Error] {e}")
+        return jsonify({"error": "Failed to clear vectorstore"}), 500
+
 @app.route("/api/documents/search", methods=["POST"])
 def search_documents():
     """Search user's documents with a query"""
@@ -1364,7 +1519,7 @@ def oauth2callback():
         auth_code = request.args.get('code')
         if not auth_code:
             print(f"[OAuth] ❌ No authorization code received")
-            return jsonify({"error": "No authorization code received"}), 400
+            return redirect("http://localhost:3000?auth=error&message=No authorization code received")
         
         print(f"[OAuth] 🔑 Authorization code received: {auth_code[:20]}...")
         
@@ -1608,5 +1763,14 @@ except Exception as e:
     print("[STARTUP] Continuing without global vectorstore...")
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Production-ready configuration
+    port = int(os.getenv("PORT", 5000))
+    host = os.getenv("HOST", "0.0.0.0")
+    debug = os.getenv("FLASK_DEBUG", "False").lower() == "true"
+    
+    print(f"[STARTUP] Starting Flask app on {host}:{port}")
+    print(f"[STARTUP] Debug mode: {debug}")
+    print(f"[STARTUP] Environment: {os.getenv('FLASK_ENV', 'development')}")
+    
+    app.run(host=host, port=port, debug=debug)
 

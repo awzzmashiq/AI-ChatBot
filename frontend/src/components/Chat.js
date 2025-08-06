@@ -150,42 +150,44 @@ function Chat({ user, onLogout }) {
         
         const poll = async () => {
             try {
+                console.log('[Frontend] Polling for upload status...');
                 const res = await fetch('http://localhost:5000/api/upload/status', {
                     credentials: 'include'
                 });
-                if (!res.ok) return;
+                if (!res.ok) {
+                    console.log('[Frontend] Status endpoint not available yet');
+                    return;
+                }
                 
                 const data = await res.json();
-                if (data.success && data.messages && data.messages.length > 0) {
-                    const lastMessage = data.messages[data.messages.length - 1];
-                    
-                    // Check if processing is complete (success or error message)
-                    if (lastMessage.role === 'assistant' && 
-                        (lastMessage.content.includes('✅') || lastMessage.content.includes('❌'))) {
-                        // Processing is complete, update the chat directly
-                        setChat(prev => {
-                            // Find and replace the processing message with the completion message
-                            const updatedChat = [...prev];
-                            for (let i = updatedChat.length - 1; i >= 0; i--) {
-                                if (updatedChat[i].role === 'assistant' && 
-                                    updatedChat[i].content.includes('Processing your file')) {
-                                    updatedChat[i] = lastMessage;
-                                    break;
-                                }
-                            }
-                            return updatedChat;
-                        });
-                        return;
-                    }
+                console.log('[Frontend] Status response:', data);
+                
+                if (data.status === 'completed') {
+                    console.log('[Frontend] Processing completed, reloading chat');
+                    // Reload the chat to get the updated messages
+                    loadHistory();
+                    return;
+                } else if (data.status === 'failed') {
+                    console.log('[Frontend] Processing failed, reloading chat');
+                    // Reload the chat to get the error message
+                    loadHistory();
+                    return;
+                } else if (data.status === 'processing') {
+                    console.log('[Frontend] Still processing...');
                 }
                 
                 // Continue polling if not complete
                 pollCount++;
                 if (pollCount < maxPolls) {
-                    setTimeout(poll, 5000); // Poll every 5 seconds
+                    setTimeout(poll, 3000); // Poll every 3 seconds
+                } else {
+                    console.log('[Frontend] Polling timeout, reloading chat');
+                    loadHistory(); // Final reload to get any updates
                 }
             } catch (err) {
-                console.error('Polling error:', err);
+                console.error('[Frontend] Polling error:', err);
+                // On error, try to reload chat after a delay
+                setTimeout(() => loadHistory(), 5000);
             }
         };
         

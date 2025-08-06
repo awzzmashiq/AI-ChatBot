@@ -59,6 +59,38 @@ function Documents({ onClose }) {
         }
     };
 
+    const handleClearVectorstore = async () => {
+        const confirmed = window.confirm(
+            '⚠️ WARNING: This will permanently delete your entire document knowledge base!\n\n' +
+            'This action will:\n' +
+            '• Remove all indexed documents from your vectorstore\n' +
+            '• Clear your document search capabilities\n' +
+            '• Require you to re-upload documents to rebuild your knowledge base\n\n' +
+            'Are you absolutely sure you want to proceed?'
+        );
+        
+        if (!confirmed) return;
+        
+        try {
+            const res = await fetch('http://localhost:5000/api/documents/clear-vectorstore', {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            
+            if (!res.ok) throw new Error('Failed to clear vectorstore');
+            
+            const data = await res.json();
+            if (data.success) {
+                window.alert('✅ Your document knowledge base has been cleared successfully!');
+                fetchDocuments();
+                fetchStats();
+            }
+        } catch (err) {
+            console.error('Clear vectorstore error:', err);
+            window.alert('Failed to clear vectorstore');
+        }
+    };
+
     const formatFileSize = (bytes) => {
         if (!bytes || bytes === 0) return '0 Bytes';
         const k = 1024;
@@ -109,7 +141,16 @@ function Documents({ onClose }) {
                             <p>Manage your uploaded documents</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="close">✕</button>
+                    <div className="header-actions">
+                        <button 
+                            onClick={handleClearVectorstore}
+                            className="clear-vectorstore-btn"
+                            title="Clear Document Knowledge Base"
+                        >
+                            🗑️ Clear Knowledge Base
+                        </button>
+                        <button onClick={onClose} className="close">✕</button>
+                    </div>
                 </div>
 
                 {/* Stats Cards */}

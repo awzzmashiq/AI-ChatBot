@@ -197,68 +197,58 @@ class RealGoogleDriveStorageProvider:
             if user in self.user_services:
                 del self.user_services[user]
             
-            # Try multiple approaches to handle scope issues
-            creds = None
-            approaches_tried = []
+            # Manual OAuth token exchange to bypass scope issues
+            print(f"[GoogleDrive] 🔧 Attempting manual OAuth token exchange...")
             
-            # Approach 1: Try with original scopes
             try:
-                print(f"[GoogleDrive] 🔧 Approach 1: Creating OAuth flow with scopes: {SCOPES}")
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    self.credentials_path, SCOPES)
-                flow.redirect_uri = redirect_uri
-                flow.fetch_token(code=auth_code)
-                creds = flow.credentials
-                print(f"[GoogleDrive] ✅ Approach 1 successful")
-                approaches_tried.append("original_scopes")
-            except Exception as e1:
-                error_str = str(e1)
-                print(f"[GoogleDrive] ❌ Approach 1 failed: {error_str}")
-                approaches_tried.append(f"original_scopes_failed: {error_str}")
+                # Read credentials file
+                with open(self.credentials_path, 'r') as f:
+                    creds_data = json.load(f)
                 
-                # Approach 2: Try with no scopes
-                try:
-                    print(f"[GoogleDrive] 🔧 Approach 2: Creating OAuth flow with no scopes")
-                    flow_no_scopes = InstalledAppFlow.from_client_secrets_file(
-                        self.credentials_path, [])
-                    flow_no_scopes.redirect_uri = redirect_uri
-                    flow_no_scopes.fetch_token(code=auth_code)
-                    creds = flow_no_scopes.credentials
-                    print(f"[GoogleDrive] ✅ Approach 2 successful")
-                    approaches_tried.append("no_scopes")
-                except Exception as e2:
-                    error_str = str(e2)
-                    print(f"[GoogleDrive] ❌ Approach 2 failed: {error_str}")
-                    approaches_tried.append(f"no_scopes_failed: {error_str}")
+                # Extract client info
+                client_id = creds_data['web']['client_id']
+                client_secret = creds_data['web']['client_secret']
+                
+                # Prepare token exchange request
+                import requests
+                
+                token_url = "https://oauth2.googleapis.com/token"
+                token_data = {
+                    'client_id': client_id,
+                    'client_secret': client_secret,
+                    'code': auth_code,
+                    'grant_type': 'authorization_code',
+                    'redirect_uri': redirect_uri
+                }
+                
+                print(f"[GoogleDrive] 🔄 Sending manual token exchange request...")
+                response = requests.post(token_url, data=token_data)
+                
+                if response.status_code == 200:
+                    token_response = response.json()
+                    print(f"[GoogleDrive] ✅ Manual token exchange successful")
                     
-                    # Approach 3: Try with minimal scopes
-                    try:
-                        print(f"[GoogleDrive] 🔧 Approach 3: Creating OAuth flow with minimal scopes")
-                        minimal_scopes = ['https://www.googleapis.com/auth/drive.file']
-                        flow_minimal = InstalledAppFlow.from_client_secrets_file(
-                            self.credentials_path, minimal_scopes)
-                        flow_minimal.redirect_uri = redirect_uri
-                        flow_minimal.fetch_token(code=auth_code)
-                        creds = flow_minimal.credentials
-                        print(f"[GoogleDrive] ✅ Approach 3 successful")
-                        approaches_tried.append("minimal_scopes")
-                    except Exception as e3:
-                        error_str = str(e3)
-                        print(f"[GoogleDrive] ❌ Approach 3 failed: {error_str}")
-                        approaches_tried.append(f"minimal_scopes_failed: {error_str}")
-                        
-                        # Check if any of the failures are due to invalid_grant
-                        if "invalid_grant" in error_str or "invalid_grant" in str(e2) or "invalid_grant" in str(e1):
-                            print(f"[GoogleDrive] 🚫 Authorization code already used for user {user}. User needs to re-authenticate.")
-                            # Mark this auth code as used to prevent future attempts
-                            self.used_auth_codes.add(auth_code)
-                            return False
-                        else:
-                            print(f"[GoogleDrive] 💥 All approaches failed. Approaches tried: {approaches_tried}")
-                            raise e3
-            
-            if not creds:
-                print(f"[GoogleDrive] ❌ No credentials obtained from any approach")
+                    # Create credentials object from response
+                    from google.oauth2.credentials import Credentials
+                    creds = Credentials(
+                        token=token_response['access_token'],
+                        refresh_token=token_response.get('refresh_token'),
+                        token_uri="https://oauth2.googleapis.com/token",
+                        client_id=client_id,
+                        client_secret=client_secret,
+                        scopes=token_response.get('scope', '').split() if 'scope' in token_response else SCOPES
+                    )
+                    
+                else:
+                    print(f"[GoogleDrive] ❌ Manual token exchange failed: {response.status_code} - {response.text}")
+                    # Mark this auth code as used to prevent future attempts
+                    self.used_auth_codes.add(auth_code)
+                    return False
+                    
+            except Exception as manual_error:
+                print(f"[GoogleDrive] ❌ Manual token exchange error: {manual_error}")
+                # Mark this auth code as used to prevent future attempts
+                self.used_auth_codes.add(auth_code)
                 return False
             
             # Mark this auth code as successfully used
