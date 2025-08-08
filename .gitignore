@@ -149,4 +149,4 @@ celerybeat.pid
 # mypy
 .mypy_cache/
 .dmypy.json
-dmypy.json 
+dmypy.json backend/token_ashik730_at_gmail.com.pickle
