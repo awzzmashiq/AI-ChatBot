@@ -64,21 +64,6 @@ def requires_auth(f):
         return f(*args, **kwargs)
     return decorated
 
-# Apply basic auth to all routes except login/signup
-@app.before_request
-def require_basic_auth():
-    # Skip auth for login/signup endpoints
-    if request.endpoint in ['login', 'signup', 'google_login']:
-        return
-    
-    # Skip auth for static files and OPTIONS requests
-    if request.method == 'OPTIONS' or request.path.startswith('/static/'):
-        return
-    
-    auth = request.authorization
-    if not auth or not check_auth(auth.username, auth.password):
-        return authenticate()
-
 # Check if API key is available
 if not THETA_API_KEY:
     print("[WARNING] THETA_API_KEY not found in environment variables!")
@@ -91,6 +76,24 @@ app.secret_key = JWT_SECRET  # Secret key for session (also used for JWT signing
 # Enable CORS for cross-origin requests with credentials (allow React dev origin)
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": ["http://localhost:3000", "http://127.0.0.1:3000"]}})
 print("[Flask] CORS configured for localhost:3000")
+
+# Apply basic auth to all routes except login/signup
+@app.before_request
+def require_basic_auth():
+    # Skip auth for development - comment out for production
+    return
+    
+    # Skip auth for login/signup endpoints
+    if request.endpoint in ['login', 'signup', 'google_login']:
+        return
+    
+    # Skip auth for static files and OPTIONS requests
+    if request.method == 'OPTIONS' or request.path.startswith('/static/'):
+        return
+    
+    auth = request.authorization
+    if not auth or not check_auth(auth.username, auth.password):
+        return authenticate()
 
 # Global data structures and paths
 users_db_path = "users.json"
