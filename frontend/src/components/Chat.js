@@ -3,6 +3,7 @@ import ChatMessage from './ChatMessage';
 import Sidebar from './Sidebar';
 import Documents from './Documents';
 import StorageSettings from './StorageSettings';
+import config from '../config';
 import './Chat.css';
 
 function Chat({ user, onLogout }) {
@@ -23,7 +24,8 @@ function Chat({ user, onLogout }) {
 
     const loadHistory = async () => {
         try {
-            const res = await fetch(`http://localhost:5000/api/history?session_id=${currentSessionId}`, { credentials: 'include' });
+            const apiBaseUrl = config.getApiBaseUrl();
+            const res = await fetch(`${apiBaseUrl}/api/history?session_id=${currentSessionId}`, { credentials: 'include' });
             if (!res.ok) throw new Error('Failed to load history');
             const data = await res.json();
             console.log('[Chat] History loaded:', data);
@@ -68,7 +70,8 @@ function Chat({ user, onLogout }) {
         setIsLoading(true);
         
         try {
-            const res = await fetch('http://localhost:5000/api/chat', {
+            const apiBaseUrl = config.getApiBaseUrl();
+            const res = await fetch(`${apiBaseUrl}/api/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
@@ -117,7 +120,8 @@ function Chat({ user, onLogout }) {
         setIsUploading(true);
         
         try {
-            const res = await fetch('http://localhost:5000/api/upload', {
+            const apiBaseUrl = config.getApiBaseUrl();
+            const res = await fetch(`${apiBaseUrl}/api/upload`, {
                 method: 'POST',
                 credentials: 'include',
                 body: formData
@@ -151,9 +155,10 @@ function Chat({ user, onLogout }) {
         const poll = async () => {
             try {
                 console.log('[Frontend] Polling for upload status...');
-                const res = await fetch('http://localhost:5000/api/upload/status', {
-                    credentials: 'include'
-                });
+                            const apiBaseUrl = config.getApiBaseUrl();
+            const res = await fetch(`${apiBaseUrl}/api/upload/status`, {
+                credentials: 'include'
+            });
                 if (!res.ok) {
                     console.log('[Frontend] Status endpoint not available yet');
                     return;
@@ -220,7 +225,8 @@ function Chat({ user, onLogout }) {
                     formData.append('file', audioBlob, 'recording.wav');
                     
                     try {
-                        const res = await fetch('http://localhost:5000/api/audio', {
+                        const apiBaseUrl = config.getApiBaseUrl();
+                        const res = await fetch(`${apiBaseUrl}/api/audio?session_id=${currentSessionId}`, {
                             method: 'POST',
                             credentials: 'include',
                             body: formData
@@ -229,8 +235,9 @@ function Chat({ user, onLogout }) {
                         if (!res.ok) throw new Error('Audio processing failed');
                         
                         const data = await res.json();
-                        if (data.question) {
-                            setMessageInput(data.question);
+                        if (data.messages && data.messages.length > 0) {
+                            // Add the messages to the chat
+                            setChat(prev => [...prev, ...data.messages]);
                         }
                     } catch (err) {
                         console.error('Audio processing error:', err);
@@ -249,7 +256,8 @@ function Chat({ user, onLogout }) {
 
     const handleLogout = async () => {
         try {
-            await fetch('http://localhost:5000/api/logout', {
+            const apiBaseUrl = config.getApiBaseUrl();
+            await fetch(`${apiBaseUrl}/api/logout`, {
                 method: 'POST',
                 credentials: 'include'
             });

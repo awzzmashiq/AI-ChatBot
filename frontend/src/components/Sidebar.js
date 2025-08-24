@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import config from '../config';
 import './Sidebar.css';
 
 function Sidebar({ user, currentSessionId, onSessionChange, onNewChat, onClose }) {
@@ -13,7 +14,8 @@ function Sidebar({ user, currentSessionId, onSessionChange, onNewChat, onClose }
 
     const fetchSessions = async () => {
         try {
-            const res = await fetch('http://localhost:5000/api/sessions', { credentials: 'include' });
+            const apiBaseUrl = config.getApiBaseUrl();
+            const res = await fetch(`${apiBaseUrl}/api/sessions`, { credentials: 'include' });
             if (!res.ok) throw new Error('Failed to fetch sessions');
             const data = await res.json();
             setSessions(data.sessions || []);
@@ -25,7 +27,8 @@ function Sidebar({ user, currentSessionId, onSessionChange, onNewChat, onClose }
     const handleNewChat = async () => {
         setIsCreating(true);
         try {
-            const res = await fetch('http://localhost:5000/api/sessions', {
+            const apiBaseUrl = config.getApiBaseUrl();
+            const res = await fetch(`${apiBaseUrl}/api/sessions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
@@ -48,7 +51,8 @@ function Sidebar({ user, currentSessionId, onSessionChange, onNewChat, onClose }
 
     const handleRenameSession = async (sessionId, newName) => {
         try {
-            const res = await fetch(`http://localhost:5000/api/sessions/${sessionId}/rename`, {
+            const apiBaseUrl = config.getApiBaseUrl();
+            const res = await fetch(`${apiBaseUrl}/api/sessions/${sessionId}/rename`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
@@ -71,7 +75,8 @@ function Sidebar({ user, currentSessionId, onSessionChange, onNewChat, onClose }
         if (!window.confirm('Are you sure you want to delete this chat session?')) return;
         
         try {
-            const res = await fetch(`http://localhost:5000/api/sessions/${sessionId}`, {
+            const apiBaseUrl = config.getApiBaseUrl();
+            const res = await fetch(`${apiBaseUrl}/api/sessions/${sessionId}`, {
                 method: 'DELETE',
                 credentials: 'include'
             });

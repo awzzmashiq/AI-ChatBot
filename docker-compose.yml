@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  study-buddy:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - THETA_API_KEY=${THETA_API_KEY}
+      - SECRET_KEY=${SECRET_KEY:-studybuddy_secret_key}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - FLASK_ENV=production
+      - HOST=0.0.0.0
+      - PORT=5000
+    volumes:
+      # Mount persistent data directories
+      - ./data/users:/app/users
+      - ./data/vectorstores:/app/vectorstores
+      - ./data/books:/app/books
+      - ./data/chat_history:/app/chat_history
+      - ./data/chat_sessions:/app/chat_sessions
+      - ./data/storage_preferences:/app/storage_preferences
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/check"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Redis for session storage (uncomment if needed)
+  # redis:
+  #   image: redis:7-alpine
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis_data:/data
+  #   restart: unless-stopped
+
+volumes:
+  redis_data:

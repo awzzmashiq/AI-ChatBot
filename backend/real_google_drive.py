@@ -15,6 +15,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 from googleapiclient.errors import HttpError
 from io import BytesIO
+from config import Config
 
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = [
@@ -132,8 +133,13 @@ class RealGoogleDriveStorageProvider:
             print(f"[GoogleDrive] 🧹 Clearing used auth codes for fresh authentication")
             self.used_auth_codes.clear()
             
-            # Use a specific redirect URI for this user
-            redirect_uri = "http://localhost:5000/oauth2callback"
+            # Use dynamic redirect URI based on environment
+            try:
+                from app import get_current_base_url
+                base_url = get_current_base_url()
+                redirect_uri = f"{base_url}/oauth2callback"
+            except:
+                redirect_uri = Config.get_oauth_redirect_uri()
             
             # Read credentials to see what's configured
             with open(self.credentials_path, 'r') as f:
@@ -181,8 +187,13 @@ class RealGoogleDriveStorageProvider:
                 print(f"[GoogleDrive] ❌ Credentials file not found: {self.credentials_path}")
                 return False
             
-            # Use a specific redirect URI
-            redirect_uri = "http://localhost:5000/oauth2callback"
+            # Use dynamic redirect URI based on environment
+            try:
+                from app import get_current_base_url
+                base_url = get_current_base_url()
+                redirect_uri = f"{base_url}/oauth2callback"
+            except:
+                redirect_uri = Config.get_oauth_redirect_uri()
             print(f"[GoogleDrive] 🔗 Using redirect URI: {redirect_uri}")
             
             # Clear any existing tokens for this user first

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './index.css';
 import Login from './components/Login';
 import Chat from './components/Chat';
+import config from './config';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -9,7 +10,8 @@ function App() {
   useEffect(() => {
     // Check if already logged in (session active)
     console.log('[DEBUG] Checking session on app load');
-    fetch('http://localhost:5000/api/check', { credentials: 'include' })
+    const apiBaseUrl = config.getApiBaseUrl();
+    fetch(`${apiBaseUrl}/api/check`, { credentials: 'include' })
       .then(res => {
         console.log(`[DEBUG] Session check response status: ${res.status}`);
         return res.json();

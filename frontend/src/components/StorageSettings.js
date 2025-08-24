@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import config from '../config';
 import './StorageSettings.css';
 
 function StorageSettings({ onClose }) {
@@ -19,7 +20,8 @@ function StorageSettings({ onClose }) {
 
     const fetchPreferences = async () => {
         try {
-            const res = await fetch('http://localhost:5000/api/storage/preferences', { credentials: 'include' });
+            const apiBaseUrl = config.getApiBaseUrl();
+            const res = await fetch(`${apiBaseUrl}/api/storage/preferences`, { credentials: 'include' });
             if (!res.ok) throw new Error('Failed to fetch preferences');
                     const data = await res.json();
         setPreferences({ storage: data.current_provider || 'local' });
@@ -34,7 +36,8 @@ function StorageSettings({ onClose }) {
 
     const checkGoogleDriveStatus = async () => {
         try {
-            const res = await fetch('http://localhost:5000/api/storage/google-drive/status', { credentials: 'include' });
+            const apiBaseUrl = config.getApiBaseUrl();
+            const res = await fetch(`${apiBaseUrl}/api/storage/google-drive/status`, { credentials: 'include' });
             if (!res.ok) throw new Error('Failed to check Google Drive status');
             const data = await res.json();
             setGoogleDriveStatus(data);
@@ -52,7 +55,8 @@ function StorageSettings({ onClose }) {
             if (isGoogleUser) {
                 // For Google users, try to authenticate automatically
                 try {
-                    const res = await fetch('http://localhost:5000/api/storage/google-drive/auth', {
+                    const apiBaseUrl = config.getApiBaseUrl();
+                    const res = await fetch(`${apiBaseUrl}/api/storage/google-drive/auth`, {
                         method: 'POST',
                         credentials: 'include'
                     });
@@ -80,7 +84,8 @@ function StorageSettings({ onClose }) {
 
     const saveStoragePreference = async (storageType) => {
         try {
-            const res = await fetch('http://localhost:5000/api/storage/preferences', {
+            const apiBaseUrl = config.getApiBaseUrl();
+            const res = await fetch(`${apiBaseUrl}/api/storage/preferences`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
@@ -102,7 +107,8 @@ function StorageSettings({ onClose }) {
 
     const handleSavePreferences = async () => {
         try {
-            const res = await fetch('http://localhost:5000/api/storage/preferences', {
+            const apiBaseUrl = config.getApiBaseUrl();
+            const res = await fetch(`${apiBaseUrl}/api/storage/preferences`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
@@ -131,7 +137,8 @@ function StorageSettings({ onClose }) {
             const currentStorage = preferences.storage === 'google_drive' ? 'local' : 'google_drive';
             const targetStorage = preferences.storage;
             
-            const res = await fetch('http://localhost:5000/api/storage/migrate', {
+            const apiBaseUrl = config.getApiBaseUrl();
+            const res = await fetch(`${apiBaseUrl}/api/storage/migrate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
@@ -157,7 +164,8 @@ function StorageSettings({ onClose }) {
 
     const handleGoogleAuth = async () => {
         try {
-            const res = await fetch('http://localhost:5000/api/storage/google-drive/auth', {
+            const apiBaseUrl = config.getApiBaseUrl();
+            const res = await fetch(`${apiBaseUrl}/api/storage/google-drive/auth`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
@@ -183,7 +191,8 @@ function StorageSettings({ onClose }) {
 
     const getAuthUrl = async () => {
         try {
-            const res = await fetch('http://localhost:5000/api/storage/google-drive/auth', { credentials: 'include' });
+            const apiBaseUrl = config.getApiBaseUrl();
+            const res = await fetch(`${apiBaseUrl}/api/storage/google-drive/auth`, { credentials: 'include' });
             if (!res.ok) throw new Error('Failed to get auth URL');
             const data = await res.json();
             if (data.auth_url) {

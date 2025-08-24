@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import config from '../config';
 import './Login.css';
 
 function Login({ onLoginSuccess }) {
@@ -27,7 +28,8 @@ function Login({ onLoginSuccess }) {
     function handleGoogleResponse(response) {
         const token = response.credential;
         if (token) {
-            fetch('http://localhost:5000/api/google-login', {
+            const apiBaseUrl = config.getApiBaseUrl();
+            fetch(`${apiBaseUrl}/api/google-login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
@@ -37,7 +39,7 @@ function Login({ onLoginSuccess }) {
                 .then(data => {
                     if (data.success) {
                         setTimeout(() => {
-                            fetch('http://localhost:5000/api/check', { credentials: 'include' })
+                            fetch(`${apiBaseUrl}/api/check`, { credentials: 'include' })
                                 .then(res => res.json())
                                 .then(check => {
                                     console.log("Session confirmed after Google login:", check);
@@ -66,7 +68,8 @@ function Login({ onLoginSuccess }) {
             return;
         }
         
-        const endpoint = isSignUp ? 'http://localhost:5000/api/signup' : 'http://localhost:5000/api/login';
+        const apiBaseUrl = config.getApiBaseUrl();
+        const endpoint = isSignUp ? `${apiBaseUrl}/api/signup` : `${apiBaseUrl}/api/login`;
         
         try {
             const res = await fetch(endpoint, {

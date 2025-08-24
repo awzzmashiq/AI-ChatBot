@@ -74,7 +74,8 @@ if not THETA_API_KEY:
 app = Flask(__name__)
 app.secret_key = JWT_SECRET  # Secret key for session (also used for JWT signing)
 # Enable CORS for cross-origin requests with credentials (allow React dev origin)
-CORS(app, supports_credentials=True, resources={r"/*": {"origins": ["http://localhost:3000", "http://127.0.0.1:3000"]}})
+#CORS(app, supports_credentials=True, resources={r"/*": {"origins": ["http://localhost:3000", "http://127.0.0.1:3000"]}})
+CORS(app, supports_credentials=True)
 print("[Flask] CORS configured for localhost:3000")
 
 # Apply basic auth to all routes except login/signup

@@ -4,6 +4,7 @@ import shutil
 from abc import ABC, abstractmethod
 from typing import List, Dict, Optional, BinaryIO
 import datetime
+from config import Config
 
 class StorageProvider(ABC):
     """Abstract base class for storage providers"""
@@ -199,7 +200,7 @@ class GoogleDriveStorageProvider(StorageProvider):
         
         if self.real_provider:
             return self.real_provider.get_auth_url(user)
-        return "https://accounts.google.com/o/oauth2/auth?client_id=demo&redirect_uri=http://localhost:3000"
+        return f"https://accounts.google.com/o/oauth2/auth?client_id=demo&redirect_uri={Config.get_oauth_redirect_uri()}"
     
     def complete_auth(self, auth_code, user: str = None):
         """Complete the OAuth flow with the authorization code for a specific user"""

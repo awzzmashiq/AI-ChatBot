@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import config from '../config';
 import './Documents.css';
 
 function Documents({ onClose }) {
@@ -15,7 +16,8 @@ function Documents({ onClose }) {
 
     const fetchDocuments = async () => {
         try {
-            const res = await fetch('http://localhost:5000/api/documents', { credentials: 'include' });
+            const apiBaseUrl = config.getApiBaseUrl();
+            const res = await fetch(`${apiBaseUrl}/api/documents`, { credentials: 'include' });
             if (!res.ok) throw new Error('Failed to fetch documents');
             const data = await res.json();
             setDocuments(data.documents || []);
@@ -28,7 +30,8 @@ function Documents({ onClose }) {
 
     const fetchStats = async () => {
         try {
-            const res = await fetch('http://localhost:5000/api/documents/stats', { credentials: 'include' });
+            const apiBaseUrl = config.getApiBaseUrl();
+            const res = await fetch(`${apiBaseUrl}/api/documents/stats`, { credentials: 'include' });
             if (!res.ok) throw new Error('Failed to fetch stats');
             const data = await res.json();
             setStats(data.stats || {});
@@ -41,7 +44,8 @@ function Documents({ onClose }) {
         if (!window.confirm('Are you sure you want to delete this document?')) return;
         
         try {
-            const res = await fetch(`http://localhost:5000/api/documents/${docId}`, {
+            const apiBaseUrl = config.getApiBaseUrl();
+            const res = await fetch(`${apiBaseUrl}/api/documents/${docId}`, {
                 method: 'DELETE',
                 credentials: 'include'
             });
@@ -72,7 +76,8 @@ function Documents({ onClose }) {
         if (!confirmed) return;
         
         try {
-            const res = await fetch('http://localhost:5000/api/documents/clear-vectorstore', {
+            const apiBaseUrl = config.getApiBaseUrl();
+            const res = await fetch(`${apiBaseUrl}/api/documents/clear-vectorstore`, {
                 method: 'DELETE',
                 credentials: 'include'
             });
