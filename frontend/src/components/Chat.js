@@ -1,22 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Menu, Settings, FileText, LogOut, Plus, Sparkles } from 'lucide-react';
 import ChatMessage from './ChatMessage';
+import InputBar from './InputBar';
 import Sidebar from './Sidebar';
 import Documents from './Documents';
 import StorageSettings from './StorageSettings';
+import { useTheme } from '../contexts/ThemeContext';
 import config from '../config';
-import './Chat.css';
 
 function Chat({ user, onLogout }) {
     const [chat, setChat] = useState([]);
     const [messageInput, setMessageInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [currentSessionId, setCurrentSessionId] = useState('default');
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [sidebarOpen, setSidebarOpen] = useState(false); // Default closed for mobile-first
     const [showDocuments, setShowDocuments] = useState(false);
     const [showStorageSettings, setShowStorageSettings] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [recording, setRecording] = useState(false);
+    const [funMode, setFunMode] = useState(false);
     
+    const { isDark, toggleTheme } = useTheme();
     const bottomRef = useRef();
     const fileInputRef = useRef();
     const mediaRecorderRef = useRef();
@@ -57,6 +62,17 @@ function Chat({ user, onLogout }) {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [chat]);
 
+    // Close sidebar on large screens by default
+    useEffect(() => {
+        const handleResize = () => {
+            if (window.innerWidth >= 1024) {
+                setSidebarOpen(false);
+            }
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     const handleSend = async () => {
         if (!messageInput.trim() || isLoading) return;
         
@@ -77,7 +93,8 @@ function Chat({ user, onLogout }) {
                 credentials: 'include',
                 body: JSON.stringify({ 
                     message: messageInput,
-                    session_id: currentSessionId
+                    session_id: currentSessionId,
+                    fun_mode: funMode
                 })
             });
             
@@ -155,10 +172,10 @@ function Chat({ user, onLogout }) {
         const poll = async () => {
             try {
                 console.log('[Frontend] Polling for upload status...');
-                            const apiBaseUrl = config.getApiBaseUrl();
-            const res = await fetch(`${apiBaseUrl}/api/upload/status`, {
-                credentials: 'include'
-            });
+                const apiBaseUrl = config.getApiBaseUrl();
+                const res = await fetch(`${apiBaseUrl}/api/upload/status`, {
+                    credentials: 'include'
+                });
                 if (!res.ok) {
                     console.log('[Frontend] Status endpoint not available yet');
                     return;
@@ -267,21 +284,6 @@ function Chat({ user, onLogout }) {
         onLogout();
     };
 
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSend();
-        }
-    };
-
-    const handleFileChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            handleFileUpload(file);
-        }
-        e.target.value = '';
-    };
-
     const handleSessionChange = (sessionId) => {
         setCurrentSessionId(sessionId);
     };
@@ -296,133 +298,213 @@ function Chat({ user, onLogout }) {
     };
 
     return (
-        <div className="chat-container">
-            {/* Sidebar */}
-            {sidebarOpen && (
-                <div className="sidebar">
-                    <Sidebar
-                        user={user}
-                        currentSessionId={currentSessionId}
-                        onSessionChange={handleSessionChange}
-                        onNewChat={handleNewChat}
-                        onClose={() => setSidebarOpen(false)}
-                    />
-                </div>
-            )}
+        <div className="flex h-screen bg-white dark:bg-black">
+            {/* Sidebar Overlay for Mobile */}
+            <AnimatePresence>
+                {sidebarOpen && (
+                    <>
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+                            onClick={() => setSidebarOpen(false)}
+                        />
+                        <motion.div
+                            initial={{ x: -300 }}
+                            animate={{ x: 0 }}
+                            exit={{ x: -300 }}
+                            transition={{ type: "spring", damping: 30, stiffness: 400 }}
+                            className="fixed left-0 top-0 bottom-0 w-80 z-50 lg:relative lg:z-auto"
+                        >
+                            <Sidebar
+                                user={user}
+                                currentSessionId={currentSessionId}
+                                onSessionChange={handleSessionChange}
+                                onNewChat={handleNewChat}
+                                onClose={() => setSidebarOpen(false)}
+                            />
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
 
             {/* Main Chat Area */}
-            <div className="main-chat">
+            <div className="flex-1 flex flex-col min-w-0">
                 {/* Header */}
-                <div className="chat-header">
-                    <div className="header-left">
-                        <button onClick={toggleSidebar} className="menu-button">
-                            ☰
-                        </button>
-                        <h1>Doc Smart</h1>
-                        <span>Logged in as {user}</span>
-                    </div>
-                    <div className="header-right">
-                        <button onClick={() => setShowDocuments(true)} className="header-button">
-                            Documents
-                        </button>
-                        <button onClick={() => setShowStorageSettings(true)} className="header-button">
-                            Storage
-                        </button>
-                        <button onClick={handleLogout} className="header-button logout">
-                            Logout
-                        </button>
-                    </div>
-                </div>
-
-                {/* Messages Area */}
-                <div className="messages-container">
-                    <div className="messages">
-                        {chat.length === 0 ? (
-                            <div className="welcome-message">
-                                <h3>Welcome to Doc Smart!</h3>
-                                <p>Start a conversation or upload a document to get help with your studies.</p>
-                                <button onClick={() => fileInputRef.current?.click()} className="btn btn-secondary">
-                                    Upload Document
-                                </button>
-                            </div>
-                        ) : (
-                            chat.map((message, index) => (
-                                <ChatMessage key={index} message={message} />
-                            ))
-                        )}
-                        
-                        {isLoading && (
-                            <div className="loading-message">
-                                <div className="loading-dots">
-                                    <span></span>
-                                    <span></span>
-                                    <span></span>
+                <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 py-3">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={toggleSidebar}
+                                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                aria-label="Toggle sidebar"
+                            >
+                                <Menu className="w-5 h-5" />
+                            </motion.button>
+                            
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                                    <Sparkles className="w-4 h-4 text-white" />
+                                </div>
+                                <div>
+                                    <h1 className="text-xl font-bold text-gray-900 dark:text-white">Grok</h1>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">AI Assistant</p>
                                 </div>
                             </div>
-                        )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            {/* Fun Mode Toggle */}
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => setFunMode(!funMode)}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                                    funMode
+                                        ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                                }`}
+                                title="Toggle fun mode for witty responses"
+                            >
+                                {funMode ? '🎭 Fun Mode' : '📖 Regular Mode'}
+                            </motion.button>
+
+                            {/* Theme Toggle */}
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={toggleTheme}
+                                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                title="Toggle theme"
+                            >
+                                {isDark ? '☀️' : '🌙'}
+                            </motion.button>
+
+                            {/* Documents */}
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => setShowDocuments(true)}
+                                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                title="View documents"
+                            >
+                                <FileText className="w-5 h-5" />
+                            </motion.button>
+
+                            {/* Storage Settings */}
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => setShowStorageSettings(true)}
+                                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                title="Storage settings"
+                            >
+                                <Settings className="w-5 h-5" />
+                            </motion.button>
+
+                            {/* Logout */}
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={handleLogout}
+                                className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                title="Logout"
+                            >
+                                <LogOut className="w-5 h-5" />
+                            </motion.button>
+                        </div>
+                    </div>
+                </header>
+
+                {/* Messages Area */}
+                <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950">
+                    <div className="max-w-4xl mx-auto px-4 py-6">
+                        <AnimatePresence>
+                            {chat.length === 0 ? (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="text-center py-20"
+                                >
+                                    <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                                        <Sparkles className="w-8 h-8 text-white" />
+                                    </div>
+                                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                                        Welcome to Grok
+                                    </h3>
+                                    <p className="text-gray-600 dark:text-gray-400 mb-8 max-w-md mx-auto">
+                                        Your AI assistant ready to help with anything. Start a conversation or upload a document to get started.
+                                    </p>
+                                    <motion.button
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-medium transition-colors shadow-lg hover:shadow-xl"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        Upload Document
+                                    </motion.button>
+                                </motion.div>
+                            ) : (
+                                <>
+                                    {chat.map((message, index) => (
+                                        <ChatMessage key={index} message={message} />
+                                    ))}
+                                    
+                                    {isLoading && (
+                                        <ChatMessage 
+                                            message={{ role: 'assistant', content: '' }} 
+                                            isTyping={true}
+                                        />
+                                    )}
+                                </>
+                            )}
+                        </AnimatePresence>
                         
                         <div ref={bottomRef} />
                     </div>
                 </div>
 
                 {/* Input Area */}
-                <div className="input-area">
-                    <div className="input-container">
-                        <textarea
-                            value={messageInput}
-                            onChange={(e) => setMessageInput(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            placeholder="Type your message..."
-                            className="message-input"
-                            rows="1"
-                        />
-                        
-                        <div className="input-buttons">
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                onChange={handleFileChange}
-                                className="hidden"
-                                accept=".pdf,.docx,.txt,.jpg,.jpeg,.png,.mp3,.wav,.m4a"
-                            />
-                            
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={isUploading}
-                                className="input-button"
-                                title="Upload File"
-                            >
-                                {isUploading ? '⏳' : '📎'}
-                            </button>
-                            
-                            <button
-                                onClick={toggleRecording}
-                                className={`input-button ${recording ? 'recording' : ''}`}
-                                title={recording ? 'Stop Recording' : 'Voice Input'}
-                            >
-                                {recording ? '⏹️' : '🎤'}
-                            </button>
-                            
-                            <button
-                                onClick={handleSend}
-                                disabled={!messageInput.trim() || isLoading}
-                                className="send-button"
-                                title="Send Message"
-                            >
-                                ➤
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <InputBar
+                    messageInput={messageInput}
+                    setMessageInput={setMessageInput}
+                    onSend={handleSend}
+                    onFileUpload={handleFileUpload}
+                    onVoiceToggle={toggleRecording}
+                    isLoading={isLoading}
+                    isUploading={isUploading}
+                    recording={recording}
+                />
             </div>
 
             {/* Modals */}
-            {showDocuments && (
-                <Documents onClose={() => setShowDocuments(false)} />
-            )}
-            {showStorageSettings && (
-                <StorageSettings onClose={() => setShowStorageSettings(false)} />
-            )}
+            <AnimatePresence>
+                {showDocuments && (
+                    <Documents onClose={() => setShowDocuments(false)} />
+                )}
+                {showStorageSettings && (
+                    <StorageSettings onClose={() => setShowStorageSettings(false)} />
+                )}
+            </AnimatePresence>
+
+            {/* Hidden file input for upload from welcome screen */}
+            <input
+                ref={fileInputRef}
+                type="file"
+                onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        handleFileUpload(file);
+                    }
+                    e.target.value = '';
+                }}
+                className="hidden"
+                accept=".pdf,.docx,.txt,.jpg,.jpeg,.png,.mp3,.wav,.m4a"
+            />
         </div>
     );
 }

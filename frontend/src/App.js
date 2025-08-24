@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './index.css';
 import Login from './components/Login';
 import Chat from './components/Chat';
+import { ThemeProvider } from './contexts/ThemeContext';
 import config from './config';
 
 function App() {
@@ -37,13 +38,15 @@ function App() {
   };
 
   return (
-    <div className="App">
-      {user ? (
-        <Chat user={user} onLogout={handleLogout} />
-      ) : (
-        <Login onLoginSuccess={handleLoginSuccess} />
-      )}
-    </div>
+    <ThemeProvider>
+      <div className="App">
+        {user ? (
+          <Chat user={user} onLogout={handleLogout} />
+        ) : (
+          <Login onLoginSuccess={handleLoginSuccess} />
+        )}
+      </div>
+    </ThemeProvider>
   );
 }
 
