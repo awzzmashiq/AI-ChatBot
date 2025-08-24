@@ -138,7 +138,7 @@ function Chat({ user, onLogout }) {
         
         try {
             const apiBaseUrl = config.getApiBaseUrl();
-            const res = await fetch(`${apiBaseUrl}/api/upload`, {
+            const res = await fetch(`${apiBaseUrl}/api/upload?session_id=${currentSessionId}`, {
                 method: 'POST',
                 credentials: 'include',
                 body: formData
@@ -171,9 +171,9 @@ function Chat({ user, onLogout }) {
         
         const poll = async () => {
             try {
-                console.log('[Frontend] Polling for upload status...');
+                console.log(`[Frontend] Polling for upload status in session: ${currentSessionId}`);
                 const apiBaseUrl = config.getApiBaseUrl();
-                const res = await fetch(`${apiBaseUrl}/api/upload/status`, {
+                const res = await fetch(`${apiBaseUrl}/api/upload/status?session_id=${currentSessionId}`, {
                     credentials: 'include'
                 });
                 if (!res.ok) {
@@ -182,20 +182,20 @@ function Chat({ user, onLogout }) {
                 }
                 
                 const data = await res.json();
-                console.log('[Frontend] Status response:', data);
+                console.log(`[Frontend] Status response for session ${currentSessionId}:`, data);
                 
                 if (data.status === 'completed') {
-                    console.log('[Frontend] Processing completed, reloading chat');
+                    console.log(`[Frontend] Processing completed in session ${currentSessionId}, reloading chat`);
                     // Reload the chat to get the updated messages
                     loadHistory();
                     return;
                 } else if (data.status === 'failed') {
-                    console.log('[Frontend] Processing failed, reloading chat');
+                    console.log(`[Frontend] Processing failed in session ${currentSessionId}, reloading chat`);
                     // Reload the chat to get the error message
                     loadHistory();
                     return;
                 } else if (data.status === 'processing') {
-                    console.log('[Frontend] Still processing...');
+                    console.log(`[Frontend] Still processing in session ${currentSessionId}...`);
                 }
                 
                 // Continue polling if not complete
@@ -203,11 +203,11 @@ function Chat({ user, onLogout }) {
                 if (pollCount < maxPolls) {
                     setTimeout(poll, 3000); // Poll every 3 seconds
                 } else {
-                    console.log('[Frontend] Polling timeout, reloading chat');
+                    console.log(`[Frontend] Polling timeout for session ${currentSessionId}, reloading chat`);
                     loadHistory(); // Final reload to get any updates
                 }
             } catch (err) {
-                console.error('[Frontend] Polling error:', err);
+                console.error(`[Frontend] Polling error for session ${currentSessionId}:`, err);
                 // On error, try to reload chat after a delay
                 setTimeout(() => loadHistory(), 5000);
             }
@@ -350,7 +350,7 @@ function Chat({ user, onLogout }) {
                                     <Sparkles className="w-4 h-4 text-white" />
                                 </div>
                                 <div>
-                                    <h1 className="text-xl font-bold text-gray-900 dark:text-white">Grok</h1>
+                                    <h1 className="text-xl font-bold text-gray-900 dark:text-white">ValiNul</h1>
                                     <p className="text-xs text-gray-500 dark:text-gray-400">AI Assistant</p>
                                 </div>
                             </div>
@@ -433,7 +433,7 @@ function Chat({ user, onLogout }) {
                                         <Sparkles className="w-8 h-8 text-white" />
                                     </div>
                                     <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                                        Welcome to Grok
+                                        Welcome to ValiNul
                                     </h3>
                                     <p className="text-gray-600 dark:text-gray-400 mb-8 max-w-md mx-auto">
                                         Your AI assistant ready to help with anything. Start a conversation or upload a document to get started.

@@ -69,7 +69,7 @@ function ChatMessage({ message, isTyping = false }) {
                     <div className={`${isUser ? 'text-white' : 'text-gray-900 dark:text-gray-100'}`}>
                         {isTyping ? (
                             <div className="flex items-center gap-1">
-                                <span>Grok is thinking</span>
+                                <span>ValiNul is thinking</span>
                                 <div className="flex gap-1 ml-2">
                                     <motion.div
                                         className="w-1 h-1 bg-current rounded-full"

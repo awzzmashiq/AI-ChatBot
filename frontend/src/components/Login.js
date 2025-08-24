@@ -159,7 +159,7 @@ function Login({ onLoginSuccess }) {
                             transition={{ delay: 0.3, duration: 0.5 }}
                             className="text-3xl font-bold text-gray-900 dark:text-white mb-2"
                         >
-                            Welcome to Grok
+                            Welcome to ValiNul
                         </motion.h1>
                         
                         <motion.p

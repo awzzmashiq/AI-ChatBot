@@ -90,7 +90,7 @@ function InputBar({
                                 onKeyDown={handleKeyDown}
                                 onFocus={() => setIsFocused(true)}
                                 onBlur={() => setIsFocused(false)}
-                                placeholder="Ask Grok anything..."
+                                placeholder="Ask ValiNul anything..."
                                 className="w-full bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 resize-none border-none outline-none text-base leading-6 max-h-[120px]"
                                 rows="1"
                                 disabled={isLoading}

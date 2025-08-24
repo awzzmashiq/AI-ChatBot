@@ -334,6 +334,14 @@ function StorageSettings({ onClose }) {
                                                     </span>
                                                 </div>
                                             )}
+                                            {!googleDriveStatus.credentials_available && (
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                                                    <span className="text-xs text-yellow-600 dark:text-yellow-400">
+                                                        Setup Required
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -358,6 +366,29 @@ function StorageSettings({ onClose }) {
                                 </div>
                             </motion.div>
                         </div>
+                        
+                        {/* Google Drive Setup Info */}
+                        {!googleDriveStatus.credentials_available && (
+                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                                <div className="flex items-start gap-3">
+                                    <div className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                        <span className="text-white text-xs font-bold">i</span>
+                                    </div>
+                                    <div className="flex-1">
+                                        <h4 className="font-medium text-blue-800 dark:text-blue-200">
+                                            Google Drive Setup Required
+                                        </h4>
+                                        <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                                            To use Google Drive storage, you need to set up OAuth2 credentials. 
+                                            This requires creating a Google Cloud project and enabling the Google Drive API.
+                                        </p>
+                                        <div className="mt-3 text-xs text-blue-600 dark:text-blue-400">
+                                            <strong>Current Status:</strong> credentials.json not found
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Migration */}

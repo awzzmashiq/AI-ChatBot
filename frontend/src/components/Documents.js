@@ -54,12 +54,14 @@ function Documents({ onClose }) {
         }
     };
 
-    const handleDelete = async (docId) => {
+    const handleDelete = async (docId, filename) => {
         if (!window.confirm('Are you sure you want to delete this document?')) return;
         
         try {
             const apiBaseUrl = config.getApiBaseUrl();
-            const res = await fetch(`${apiBaseUrl}/api/documents/${docId}`, {
+            // Use ID if available, fallback to filename for backward compatibility
+            const identifier = docId || encodeURIComponent(filename);
+            const res = await fetch(`${apiBaseUrl}/api/documents/${identifier}`, {
                 method: 'DELETE',
                 credentials: 'include'
             });
@@ -78,7 +80,9 @@ function Documents({ onClose }) {
     const handleDownload = async (docId, filename) => {
         try {
             const apiBaseUrl = config.getApiBaseUrl();
-            const res = await fetch(`${apiBaseUrl}/api/documents/${docId}/download`, { 
+            // Use ID if available, fallback to filename for backward compatibility
+            const identifier = docId || encodeURIComponent(filename);
+            const res = await fetch(`${apiBaseUrl}/api/documents/${identifier}/download`, { 
                 credentials: 'include' 
             });
             
@@ -261,7 +265,7 @@ function Documents({ onClose }) {
                                     const IconComponent = getFileIcon(doc.filename);
                                     return (
                                         <motion.div
-                                            key={doc.id}
+                                            key={doc.id || doc.filename}
                                             initial={{ opacity: 0, y: 10 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             transition={{ delay: index * 0.05 }}
@@ -307,7 +311,7 @@ function Documents({ onClose }) {
                                                     <motion.button
                                                         whileHover={{ scale: 1.05 }}
                                                         whileTap={{ scale: 0.95 }}
-                                                        onClick={() => handleDelete(doc.id)}
+                                                        onClick={() => handleDelete(doc.id, doc.filename)}
                                                         className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                                                         title="Delete"
                                                     >
@@ -395,7 +399,7 @@ function Documents({ onClose }) {
                                         whileHover={{ scale: 1.02 }}
                                         whileTap={{ scale: 0.98 }}
                                         onClick={() => {
-                                            handleDelete(selectedDocument.id);
+                                            handleDelete(selectedDocument.id, selectedDocument.filename);
                                             setSelectedDocument(null);
                                         }}
                                         className="flex-1 py-2 px-4 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"

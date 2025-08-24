@@ -247,52 +247,57 @@ def get_user_documents(user):
 def delete_user_document(user, filename):
     """Delete a document and remove it from vectorstore"""
     try:
-        storage_provider = storage_manager.get_user_storage_provider(user)
+        print(f"[Document Deletion] User {user} requesting deletion of {filename}")
+        
+        # Get the effective storage provider (this ensures we use the correct one)
+        storage_provider = storage_manager.get_effective_storage_provider(user)
+        print(f"[Document Deletion] Using storage provider: {type(storage_provider).__name__}")
         
         # Check if file exists in storage
         if not storage_provider.file_exists(user, filename):
+            print(f"[Document Deletion] File {filename} not found in storage")
             return False, "File not found"
+        
+        print(f"[Document Deletion] File {filename} exists, proceeding with deletion")
         
         # Remove file from storage
         if not storage_provider.delete_file(user, filename):
+            print(f"[Document Deletion] Failed to delete file {filename} from storage")
             return False, "Failed to delete file from storage"
         
-        # For Google Drive (Demo), no need to update indexed files list
-        if not isinstance(storage_provider, GoogleDriveStorageProvider):
-            # Update indexed files list (maintain compatibility for local storage)
-            user_dir = os.path.join(books_dir, safe_filename(user))
-            indexed_list_path = os.path.join(user_dir, "indexed_files.json")
-            
-            indexed_files = []
-            if os.path.exists(indexed_list_path):
-                try:
-                    with open(indexed_list_path, "r") as idxf:
-                        data = json.load(idxf)
-                        if isinstance(data, list):
-                            indexed_files = data
-                        elif isinstance(data, dict) and "indexed_files" in data:
-                            indexed_files = data["indexed_files"]
-                except:
-                    indexed_files = []
-            
-            # Remove filename from indexed list
-            if filename in indexed_files:
-                indexed_files.remove(filename)
+        print(f"[Document Deletion] File {filename} successfully deleted from storage")
+        
+        # Update indexed files list for local storage
+        user_dir = os.path.join(books_dir, safe_filename(user))
+        indexed_list_path = os.path.join(user_dir, "indexed_files.json")
+        
+        if os.path.exists(indexed_list_path):
+            try:
+                with open(indexed_list_path, "r") as idxf:
+                    data = json.load(idxf)
+                    indexed_files = data.get("indexed_files", []) if isinstance(data, dict) else data
                 
-                # Save updated list
-                try:
+                # Remove filename from indexed list
+                if filename in indexed_files:
+                    indexed_files.remove(filename)
+                    print(f"[Document Deletion] Removed {filename} from indexed files list")
+                    
+                    # Save updated list
                     with open(indexed_list_path, 'w') as idxf:
                         json.dump({"indexed_files": indexed_files}, idxf)
-                except Exception as e:
-                    print(f"[Indexed files save error] {e}")
+                    print(f"[Document Deletion] Updated indexed files list saved")
+            except Exception as e:
+                print(f"[Document Deletion] Error updating indexed files list: {e}")
         
         # Rebuild vectorstore without this document
+        print(f"[Document Deletion] Rebuilding vectorstore for user {user}")
         rebuild_user_vectorstore(user)
         
+        print(f"[Document Deletion] Document {filename} deleted successfully for user {user}")
         return True, "Document deleted successfully"
         
     except Exception as e:
-        print(f"[Document deletion error] {e}")
+        print(f"[Document Deletion] Error deleting document {filename} for user {user}: {e}")
         return False, f"Error deleting document: {str(e)}"
 
 def rebuild_user_vectorstore(user):
@@ -732,6 +737,9 @@ def upload_file():
         return jsonify({"error": "No file selected"}), 400
     filename = file.filename
     
+    # Get session ID from request (default to "default" if not provided)
+    session_id = request.args.get("session_id", "default")
+    
     # Save file using storage manager
     storage_provider = storage_manager.get_user_storage_provider(user)
     
@@ -740,11 +748,11 @@ def upload_file():
         # Duplicate file upload attempt
         msg_user = {"role": "user", "content": f"📎 Skipped duplicate upload `{filename}`"}
         msg_assistant = {"role": "assistant", "content": "This file is already indexed."}
-        # Note: File uploads are global per user, not per session
-        conv = get_conversation(user, "default")
+        # Use the specified session
+        conv = get_conversation(user, session_id)
         conv.append(msg_user)
         conv.append(msg_assistant)
-        save_conversation(user, "default")
+        save_conversation(user, session_id)
         return jsonify({"messages": [msg_user, msg_assistant]})
     
     # Save file to storage
@@ -757,7 +765,7 @@ def upload_file():
                     "error": "Google Drive authentication required",
                     "auth_required": True,
                     "message": "Please complete Google Drive authentication before uploading files"
-                }), 401
+                }), 400
         
         return jsonify({"error": "Failed to save file"}), 500
     
@@ -765,16 +773,16 @@ def upload_file():
     msg_user = {"role": "user", "content": f"📎 Uploading `{filename}` for processing..."}
     msg_assistant = {"role": "assistant", "content": f"Processing your file '{filename}'... This may take a few moments for large files."}
     
-    # Note: File uploads are global per user, not per session
-    conv = get_conversation(user, "default")
+    # Use the specified session for the upload
+    conv = get_conversation(user, session_id)
     conv.append(msg_user)
     conv.append(msg_assistant)
-    save_conversation(user, "default")
+    save_conversation(user, session_id)
     
     # Start background processing
     def process_file_background():
         try:
-            print(f"[Background Processing] Starting processing for {filename}")
+            print(f"[Background Processing] Starting processing for {filename} in session: {session_id}")
             
             # Get file from storage for processing
             file_data = storage_provider.get_file(user, filename)
@@ -897,14 +905,15 @@ def upload_file():
             
             success_msg = {"role": "assistant", "content": f"✅ Your file '{filename}' has been successfully indexed and is ready to use in your studies!{summary}"}
             
-            conv = get_conversation(user, "default")
+            # Use the same session ID that was used for the upload
+            conv = get_conversation(user, session_id)
             # Replace the processing message with success message
             if conv and conv[-1]["role"] == "assistant" and "Processing your file" in conv[-1]["content"]:
                 conv[-1] = success_msg
             else:
                 conv.append(success_msg)
-            save_conversation(user, "default")
-            print(f"[Background Processing] Success message updated in chat")
+            save_conversation(user, session_id)
+            print(f"[Background Processing] Success message updated in chat for session: {session_id}")
             
         except Exception as e:
             print(f"[Background Processing] Error processing file: {e}")
@@ -912,14 +921,15 @@ def upload_file():
             # Update chat with error message
             error_msg = {"role": "assistant", "content": f"❌ Sorry, I couldn't process the file '{filename}'. Please try again or contact support."}
             
-            conv = get_conversation(user, "default")
+            # Use the same session ID that was used for the upload
+            conv = get_conversation(user, session_id)
             # Replace the processing message with error message
             if conv and conv[-1]["role"] == "assistant" and "Processing your file" in conv[-1]["content"]:
                 conv[-1] = error_msg
             else:
                 conv.append(error_msg)
-            save_conversation(user, "default")
-            print(f"[Background Processing] Error message updated in chat")
+            save_conversation(user, session_id)
+            print(f"[Background Processing] Error message updated in chat for session: {session_id}")
     
     # Start background processing thread
     thread = threading.Thread(target=process_file_background)
@@ -930,14 +940,19 @@ def upload_file():
 
 @app.route("/api/upload/status", methods=["GET"])
 def get_upload_status():
-    """Get upload processing status for the current user"""
+    """Get upload processing status for the current user and session"""
     user = get_user_from_token()
     if not user:
         return jsonify({"error": "Unauthorized"}), 401
     
-    # Get the latest conversation to check processing status
-    conv = get_conversation(user, "default")
+    # Get session_id from query parameters (default to "default" if not provided)
+    session_id = request.args.get("session_id", "default")
+    print(f"[Upload Status] Checking status for user: {user}, session: {session_id}")
+    
+    # Get the conversation for the specific session
+    conv = get_conversation(user, session_id)
     if not conv:
+        print(f"[Upload Status] No conversation found for session: {session_id}")
         return jsonify({"status": "no_uploads"})
     
     # Check the last assistant message
@@ -948,17 +963,23 @@ def get_upload_status():
             break
     
     if not last_assistant_msg:
+        print(f"[Upload Status] No assistant messages found in session: {session_id}")
         return jsonify({"status": "no_uploads"})
     
     content = last_assistant_msg["content"]
+    print(f"[Upload Status] Last assistant message in session {session_id}: {content[:100]}...")
     
     if "Processing your file" in content:
+        print(f"[Upload Status] File still processing in session: {session_id}")
         return jsonify({"status": "processing"})
     elif "✅ Your file" in content and "has been successfully indexed" in content:
+        print(f"[Upload Status] File processing completed in session: {session_id}")
         return jsonify({"status": "completed"})
     elif "❌ Sorry, I couldn't process" in content:
+        print(f"[Upload Status] File processing failed in session: {session_id}")
         return jsonify({"status": "failed"})
     else:
+        print(f"[Upload Status] Unknown status in session: {session_id}")
         return jsonify({"status": "unknown"})
 
 @app.route("/api/chat", methods=["POST"])
@@ -1204,14 +1225,35 @@ def get_documents():
         print(f"[Documents List Error] {e}")
         return jsonify({"error": "Failed to get documents list"}), 500
 
-@app.route("/api/documents/<filename>", methods=["DELETE"])
-def delete_document(filename):
-    """Delete a specific document"""
+def get_filename_from_id_or_filename(user, identifier):
+    """Get filename from document ID or return the identifier if it's already a filename"""
+    try:
+        # Get all documents for the user
+        documents = get_user_documents(user)
+        
+        # Look for a document with matching ID
+        for doc in documents:
+            if doc.get('id') == identifier:
+                return doc['filename']
+        
+        # If no ID match found, assume identifier is already a filename
+        return identifier
+    except Exception as e:
+        print(f"[ID Resolution Error] {e}")
+        return identifier
+
+@app.route("/api/documents/<identifier>", methods=["DELETE"])
+def delete_document(identifier):
+    """Delete a specific document by ID or filename"""
     user = get_user_from_token()
     if not user:
         return jsonify({"error": "Unauthorized"}), 401
     
     try:
+        # Resolve ID to filename if needed
+        filename = get_filename_from_id_or_filename(user, identifier)
+        print(f"[Document Deletion] Resolved identifier '{identifier}' to filename '{filename}'")
+        
         success, message = delete_user_document(user, filename)
         if success:
             return jsonify({
@@ -1223,6 +1265,69 @@ def delete_document(filename):
     except Exception as e:
         print(f"[Document Deletion Error] {e}")
         return jsonify({"error": "Failed to delete document"}), 500
+
+@app.route("/api/documents/<identifier>/download", methods=["GET"])
+def download_document(identifier):
+    """Download a specific document by ID or filename"""
+    user = get_user_from_token()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    try:
+        # Resolve ID to filename if needed
+        filename = get_filename_from_id_or_filename(user, identifier)
+        print(f"[Document Download] Resolved identifier '{identifier}' to filename '{filename}'")
+        print(f"[Document Download] User {user} requesting download of {filename}")
+        
+        # Get the effective storage provider
+        storage_provider = storage_manager.get_effective_storage_provider(user)
+        print(f"[Document Download] Using storage provider: {type(storage_provider).__name__}")
+        
+        # Check if file exists in storage
+        if not storage_provider.file_exists(user, filename):
+            print(f"[Document Download] File {filename} not found in storage")
+            return jsonify({"error": "File not found"}), 404
+        
+        # Get file from storage
+        file_data = storage_provider.get_file(user, filename)
+        if not file_data:
+            print(f"[Document Download] Failed to retrieve file {filename} from storage")
+            return jsonify({"error": "Failed to retrieve file"}), 500
+        
+        print(f"[Document Download] File {filename} retrieved successfully")
+        
+        # Get file extension for content type
+        ext = filename.lower().rsplit('.', 1)[-1] if '.' in filename else ''
+        content_type_map = {
+            'pdf': 'application/pdf',
+            'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls': 'application/vnd.ms-excel',
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'txt': 'text/plain',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'mp3': 'audio/mpeg',
+            'wav': 'audio/wav',
+            'm4a': 'audio/mp4'
+        }
+        content_type = content_type_map.get(ext, 'application/octet-stream')
+        
+        # Create response with file data
+        response = make_response(file_data.read())
+        response.headers['Content-Type'] = content_type
+        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        file_data.close()
+        print(f"[Document Download] File {filename} sent successfully to user {user}")
+        
+        return response
+        
+    except Exception as e:
+        print(f"[Document Download] Error downloading file for user {user}: {e}")
+        return jsonify({"error": f"Failed to download document: {str(e)}"}), 500
 
 @app.route("/api/documents/clear-vectorstore", methods=["DELETE"])
 def clear_user_vectorstore():
@@ -1352,8 +1457,31 @@ def get_storage_preferences():
     
     try:
         current_provider = storage_manager.user_preferences.get(user, 'local')
-        # Don't call get_available_providers() here to avoid triggering Google Drive init
-        available_providers = ['local', 'google_drive']  # Hardcode for now
+        effective_storage = storage_manager.get_effective_storage_provider(user)
+        
+        # Get the effective provider name
+        if isinstance(effective_storage, storage_manager.providers['local'].__class__):
+            effective_provider = 'local'
+        else:
+            effective_provider = 'google_drive'
+        
+        # Check if preferred provider is available and working
+        is_preferred_available = (current_provider == effective_provider)
+        
+        print(f"[Storage Preferences] User: {user}")
+        print(f"[Storage Preferences] Current preference: {current_provider}")
+        print(f"[Storage Preferences] Effective provider: {effective_provider}")
+        print(f"[Storage Preferences] Preferred available: {is_preferred_available}")
+        
+        # Check which providers are actually available for this user
+        available_providers = ['local']  # Local is always available
+        
+        # Check if Google Drive is properly configured and available
+        if storage_manager.is_storage_available(user, 'google_drive'):
+            available_providers.append('google_drive')
+            print(f"[Storage Preferences] Google Drive is available for user {user}")
+        else:
+            print(f"[Storage Preferences] Google Drive is NOT available for user {user}")
         
         # Check if user logged in via Google
         is_google_user = user in users and users[user] == ""
@@ -1361,14 +1489,17 @@ def get_storage_preferences():
         return jsonify({
             "success": True,
             "current_provider": current_provider,
+            "effective_provider": effective_provider,
+            "is_preferred_available": is_preferred_available,
             "available_providers": available_providers,
-            "isGoogleUser": is_google_user
+            "isGoogleUser": is_google_user,
+            "google_drive_configured": os.path.exists("credentials.json")
         })
     except Exception as e:
         print(f"[Storage Preferences Error] {e}")
         return jsonify({"error": "Failed to get storage preferences"}), 500
 
-@app.route("/api/storage/preferences", methods=["POST"])
+@app.route("/api/storage/preferences", methods=["POST", "PUT"])
 def set_storage_preferences():
     """Set user's storage preferences"""
     user = get_user_from_token()
@@ -1381,11 +1512,31 @@ def set_storage_preferences():
     if not provider:
         return jsonify({"error": "No provider specified"}), 400
     
+    print(f"[Storage Preferences] Setting {user} storage preference to {provider}")
+    
     try:
+        # Check if the provider is available before setting preference
+        if provider == 'google_drive':
+            if not storage_manager.is_storage_available(user, 'google_drive'):
+                print(f"[Storage Preferences] Warning: Google Drive not available for {user}")
+                return jsonify({
+                    "success": False,
+                    "error": "Google Drive is not available. Please authenticate first."
+                }), 400
+        
         storage_manager.set_user_storage_preference(user, provider)
+        
+        # Get updated effective provider
+        effective_provider = storage_manager.get_effective_storage_provider(user)
+        effective_provider_name = 'local' if isinstance(effective_provider, storage_manager.providers['local'].__class__) else 'google_drive'
+        
+        print(f"[Storage Preferences] {user} preference set to {provider}, effective provider: {effective_provider_name}")
+        
         return jsonify({
             "success": True,
-            "message": f"Storage preference set to {provider}"
+            "message": f"Storage preference set to {provider}",
+            "effective_provider": effective_provider_name,
+            "preference_set": provider
         })
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
@@ -1401,11 +1552,21 @@ def migrate_storage():
         return jsonify({"error": "Unauthorized"}), 401
     
     data = request.get_json()
+    # Support both old and new API formats
+    target_provider = data.get("target_provider")
     from_provider = data.get("from_provider")
     to_provider = data.get("to_provider")
     
-    if not from_provider or not to_provider:
-        return jsonify({"error": "Both from_provider and to_provider required"}), 400
+    if target_provider:
+        # New format: determine from_provider from current effective provider
+        current_effective_storage = storage_manager.get_effective_storage_provider(user)
+        if isinstance(current_effective_storage, storage_manager.providers['local'].__class__):
+            from_provider = 'local'
+        else:
+            from_provider = 'google_drive'
+        to_provider = target_provider
+    elif not from_provider or not to_provider:
+        return jsonify({"error": "Either target_provider or both from_provider and to_provider required"}), 400
     
     try:
         success = storage_manager.migrate_user_data(user, from_provider, to_provider)
@@ -1593,6 +1754,81 @@ def oauth2callback_alt():
 def google_drive_callback():
     """Handle Google Drive OAuth callback"""
     return oauth2callback()
+
+@app.route("/api/storage/google-drive/auth-url", methods=["GET"])
+def get_google_drive_auth_url_redirect():
+    """Get Google Drive authorization URL (alternative endpoint)"""
+    try:
+        # Get current user from token
+        user = get_user_from_token()
+        if not user:
+            return jsonify({"error": "Authentication required"}), 401
+        
+        # Check if credentials file exists
+        credentials_exist = os.path.exists("credentials.json")
+        
+        if not credentials_exist:
+            return jsonify({
+                "error": "Google Drive credentials not found. Please set up credentials.json first."
+            }), 400
+        
+        # Initialize Google Drive provider only when needed
+        google_drive_provider = storage_manager.providers.get('google_drive')
+        if google_drive_provider is None:
+            storage_manager.providers['google_drive'] = GoogleDriveStorageProvider()
+            google_drive_provider = storage_manager.providers['google_drive']
+        
+        if google_drive_provider.is_authenticated(user):
+            return jsonify({
+                "authenticated": True,
+                "message": "Google Drive is already authenticated for this user"
+            })
+        
+        auth_url = google_drive_provider.get_auth_url(user)
+        if auth_url:
+            # Return the auth URL directly or redirect to it
+            return redirect(auth_url)
+        else:
+            return jsonify({
+                "error": "Google Drive service not available. Please try again later."
+            }), 400
+    except Exception as e:
+        print(f"[Google Drive Auth URL Error] {e}")
+        return jsonify({"error": "Failed to get Google Drive auth URL"}), 500
+
+@app.route("/api/storage/google-drive/disconnect", methods=["POST"])
+def disconnect_google_drive():
+    """Disconnect Google Drive for the current user"""
+    try:
+        user = get_user_from_token()
+        if not user:
+            return jsonify({"error": "Authentication required"}), 401
+        
+        # Initialize Google Drive provider if needed
+        google_drive_provider = storage_manager.providers.get('google_drive')
+        if google_drive_provider is None:
+            storage_manager.providers['google_drive'] = GoogleDriveStorageProvider()
+            google_drive_provider = storage_manager.providers['google_drive']
+        
+        # Disconnect the user
+        success = google_drive_provider.disconnect_user(user)
+        
+        if success:
+            # Also reset storage preference to local
+            storage_manager.set_user_storage_preference(user, 'local')
+            return jsonify({
+                "success": True,
+                "message": "Google Drive disconnected successfully"
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": "Failed to disconnect Google Drive"
+            }), 500
+            
+    except Exception as e:
+        print(f"[Google Drive Disconnect Error] {e}")
+        return jsonify({"error": "Failed to disconnect Google Drive"}), 500
 
 @app.route("/api/storage/google-drive/status", methods=["GET"])
 def get_google_drive_status():

@@ -103,10 +103,15 @@ class LocalStorageProvider(StorageProvider):
                 file_path = os.path.join(user_dir, filename)
                 if os.path.isfile(file_path):
                     stat = os.stat(file_path)
+                    import hashlib
+                    # Create a unique ID based on user + filename + creation time
+                    file_id = hashlib.md5(f"{user}_{filename}_{stat.st_ctime}".encode()).hexdigest()
+                    
                     files.append({
+                        "id": file_id,
                         "filename": filename,
                         "size": stat.st_size,
-                        "upload_date": datetime.datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                        "uploaded_at": datetime.datetime.fromtimestamp(stat.st_ctime).isoformat(),
                         "last_modified": datetime.datetime.fromtimestamp(stat.st_mtime).isoformat(),
                         "file_type": filename.lower().rsplit('.', 1)[-1] if '.' in filename else 'unknown'
                     })
@@ -327,10 +332,15 @@ class GoogleDriveStorageProvider(StorageProvider):
             
             file_list = []
             for filename, file_info in self.mock_storage[user].items():
+                import hashlib
+                # Create a unique ID for Google Drive files
+                file_id = hashlib.md5(f"{user}_{filename}_{file_info['created_time']}".encode()).hexdigest()
+                
                 file_list.append({
+                    "id": file_id,
                     "filename": filename,
                     "size": file_info['size'],
-                    "upload_date": file_info['created_time'],
+                    "uploaded_at": file_info['created_time'],
                     "last_modified": file_info['modified_time'],
                     "file_type": file_info['file_type'],
                     "drive_id": f"mock_id_{filename}"
@@ -390,24 +400,53 @@ class StorageManager:
     
     def set_user_storage_preference(self, user: str, provider: str):
         """Set user's preferred storage provider"""
+        # Validate provider
+        if provider not in self.providers:
+            raise ValueError(f"Unknown storage provider: {provider}")
+        
         # Initialize Google Drive provider if needed
         if provider == 'google_drive' and self.providers['google_drive'] is None:
             self.providers['google_drive'] = GoogleDriveStorageProvider()
         
-        if provider not in self.providers:
-            raise ValueError(f"Unknown storage provider: {provider}")
+        # Check if the provider is actually available for this user
+        if not self.is_storage_available(user, provider):
+            print(f"[StorageManager] Warning: Provider {provider} not available for user {user}")
+            if provider == 'google_drive':
+                print(f"[StorageManager] Google Drive not authenticated for user {user}")
+            # Still set the preference, but it will fall back to local when used
+        else:
+            print(f"[StorageManager] Provider {provider} is available for user {user}")
         
         self.user_preferences[user] = provider
         self._save_user_preferences()
-        print(f"[StorageManager] User {user} set to use {provider} storage")
+        print(f"[StorageManager] User {user} storage preference set to {provider}")
+        
+        # Verify the effective provider
+        effective = self.get_effective_storage_provider(user)
+        print(f"[StorageManager] Effective storage provider for {user}: {type(effective).__name__}")
+        
+        # If the requested provider is available, it should be the effective one
+        if self.is_storage_available(user, provider):
+            print(f"[StorageManager] Successfully switched to {provider} for user {user}")
+        else:
+            print(f"[StorageManager] Warning: {provider} not available, falling back to local for user {user}")
     
     def get_user_storage_provider(self, user: str) -> StorageProvider:
         """Get user's preferred storage provider"""
         provider_name = self.user_preferences.get(user, 'local')
         
+        # Ensure local is always available as fallback
+        if provider_name not in self.providers:
+            provider_name = 'local'
+        
         # Initialize Google Drive provider if needed
         if provider_name == 'google_drive' and self.providers['google_drive'] is None:
             self.providers['google_drive'] = GoogleDriveStorageProvider()
+        
+        # Validate the provider is available, fallback to local if not
+        if not self.is_storage_available(user, provider_name):
+            print(f"[StorageManager] Provider {provider_name} not available for user {user}, falling back to local")
+            provider_name = 'local'
         
         return self.providers[provider_name]
     
@@ -417,21 +456,36 @@ class StorageManager:
             return True
         
         if provider_name == 'google_drive':
+            # Check if proper Google Drive credentials exist
+            if not os.path.exists("credentials.json"):
+                print(f"[StorageManager] Google Drive not available: credentials.json not found")
+                return False
+            
             if self.providers['google_drive'] is None:
                 self.providers['google_drive'] = GoogleDriveStorageProvider()
-            return self.providers['google_drive'].is_authenticated(user)
+            
+            # Check if user is properly authenticated
+            is_auth = self.providers['google_drive'].is_authenticated(user)
+            if not is_auth:
+                print(f"[StorageManager] Google Drive not available: user {user} not authenticated")
+            
+            return is_auth
         
         return False
     
     def get_effective_storage_provider(self, user: str) -> StorageProvider:
         """Get the effective storage provider (falls back to local if preferred is not available)"""
         provider_name = self.user_preferences.get(user, 'local')
+        print(f"[StorageManager] User {user} preferred provider: {provider_name}")
         
+        # Check if the preferred provider is available
         if self.is_storage_available(user, provider_name):
-            return self.get_user_storage_provider(user)
-        else:
-            # Fall back to local storage if preferred provider is not available
-            return self.providers['local']
+            print(f"[StorageManager] Using preferred provider {provider_name} for user {user}")
+            return self.providers[provider_name]
+        
+        # Fallback to local if preferred is not available
+        print(f"[StorageManager] Provider {provider_name} not available for user {user}, falling back to local")
+        return self.providers['local']
     
     def get_available_providers(self) -> List[str]:
         """Get list of available storage providers"""
