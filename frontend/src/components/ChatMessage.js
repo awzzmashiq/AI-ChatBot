@@ -23,6 +23,32 @@ function ChatMessage({ message, isTyping = false }) {
         }
     };
 
+    const handleDownloadImage = (imageData, prompt) => {
+        try {
+            // Convert base64 to blob
+            const byteCharacters = atob(imageData);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: 'image/png' });
+            
+            // Create download link
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `generated-image-${prompt ? prompt.replace(/[^a-zA-Z0-9]/g, '-') : Date.now()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (err) {
+            console.error('Download error:', err);
+            alert('Failed to download image');
+        }
+    };
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -91,6 +117,38 @@ function ChatMessage({ message, isTyping = false }) {
                         ) : (
                             <div className="whitespace-pre-wrap break-words">
                                 {messageContent}
+                                
+                                {/* Display generated image if present */}
+                                {message.image_data && (
+                                    <div className="mt-4">
+                                        <div className="relative group">
+                                            <img
+                                                src={`data:image/png;base64,${message.image_data}`}
+                                                alt={message.image_prompt || "Generated image"}
+                                                className="w-full h-auto rounded-lg border border-gray-200 dark:border-gray-700 max-w-md"
+                                            />
+                                            
+                                            {/* Download overlay */}
+                                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-lg flex items-center justify-center">
+                                                <button
+                                                    onClick={() => handleDownloadImage(message.image_data, message.image_prompt)}
+                                                    className="opacity-0 group-hover:opacity-100 bg-white dark:bg-gray-800 p-3 rounded-full shadow-lg transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                                    title="Download Image"
+                                                >
+                                                    <svg className="w-5 h-5 text-gray-700 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        {message.image_prompt && (
+                                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 italic">
+                                                Prompt: {message.image_prompt}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

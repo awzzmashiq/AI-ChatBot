@@ -16,6 +16,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from storage_manager import storage_manager, GoogleDriveStorageProvider
+from multi_model_service import multi_model_service
 from functools import wraps
 from flask import request, Response
 import os
@@ -1067,17 +1068,98 @@ def chat():
         {"role": "system", "content": system_content},
         {"role": "user", "content": user_content}
     ]
-    # Check if API key is available
-    if not THETA_API_KEY:
-        answer_text = "⚠️ LLM API key not configured. Please set THETA_API_KEY in your environment."
-    else:
-        result = llm.invoke(messages)
-        if isinstance(result, str):
-            answer_text = result
-        elif isinstance(result, dict):
-            answer_text = result.get("content", "")
+    # Check if this is an image generation request
+    image_keywords = ["generate image", "create image", "draw", "picture of", "image of", "generate a picture"]
+    # Also detect simple image descriptions (like "cat riding bicycle")
+    simple_image_patterns = [
+        "cat riding", "dog playing", "bird flying", "car driving", "house with", "tree in", "sunset over",
+        "mountain landscape", "beach scene", "forest path", "city skyline", "flower garden", "animal doing"
+    ]
+    
+    is_image_request = (
+        any(keyword in message.lower() for keyword in image_keywords) or
+        any(pattern in message.lower() for pattern in simple_image_patterns) or
+        # If message is short and descriptive, treat as image request when Stable Diffusion is selected
+        (len(message.split()) <= 8 and any(word in message.lower() for word in ["cat", "dog", "bird", "car", "house", "tree", "sun", "mountain", "beach", "forest", "city", "flower", "animal"]))
+    )
+    
+    if is_image_request:
+        # Check if current model supports image generation
+        current_model = multi_model_service.get_current_model_info()
+        if current_model["type"] != "theta_image":
+            # Current model doesn't support image generation
+            error_msg = {
+                "role": "assistant", 
+                "content": f"I detected you want an image, but the current model ({current_model['display_name']}) doesn't support image generation. Please switch to '🎨 Stable Diffusion Turbo Vision' in the model selector (🧠 Brain icon) to generate images."
+            }
+            conv.append({"role": "user", "content": message})
+            conv.append(error_msg)
+            save_conversation(user, session_id)
+            
+            return jsonify({"messages": [error_msg]})
+        
+        # Use the multi-model service for image generation
+        try:
+            # Extract image prompt from the message
+            prompt = message.replace("generate image", "").replace("create image", "").replace("draw", "").replace("picture of", "").replace("image of", "").strip()
+            if not prompt:
+                prompt = message  # Use full message if no specific prompt extracted
+            
+            print(f"[Chat] Detected image generation request: {prompt}")
+            
+            # Generate image using multi-model service
+            success, response = multi_model_service.generate_image(prompt)
+            
+            if success:
+                # Create assistant message with image data
+                assistant_msg = {
+                    "role": "assistant", 
+                    "content": f"I've generated an image based on your request: '{prompt}'. Here's the generated image:",
+                    "image_data": response["image_data"],
+                    "image_prompt": prompt
+                }
+                conv.append({"role": "user", "content": message})
+                conv.append(assistant_msg)
+                save_conversation(user, session_id)
+                
+                return jsonify({"messages": [assistant_msg]})
+            else:
+                # Image generation failed
+                error_msg = {
+                    "role": "assistant", 
+                    "content": f"Sorry, I couldn't generate an image for '{prompt}'. Error: {response}"
+                }
+                conv.append({"role": "user", "content": message})
+                conv.append(error_msg)
+                save_conversation(user, session_id)
+                
+                return jsonify({"messages": [error_msg]})
+                
+        except Exception as e:
+            print(f"[Chat] Image generation error: {e}")
+            error_msg = {
+                "role": "assistant", 
+                "content": f"Sorry, there was an error generating the image: {str(e)}"
+            }
+            conv.append({"role": "user", "content": message})
+            conv.append(error_msg)
+            save_conversation(user, session_id)
+            
+            return jsonify({"messages": [error_msg]})
+    
+    # Regular text chat - use the multi-model service
+    try:
+        # Generate response using multi-model service
+        success, response = multi_model_service.generate_text(messages)
+        
+        if success:
+            answer_text = response
         else:
-            answer_text = str(result)
+            answer_text = f"Sorry, I couldn't generate a response. Error: {response}"
+            
+    except Exception as e:
+        print(f"[Chat] Text generation error: {e}")
+        answer_text = "Sorry, there was an error processing your request."
     
     assistant_msg = {"role": "assistant", "content": answer_text}
     conv.append({"role": "user", "content": message})
@@ -1328,6 +1410,186 @@ def download_document(identifier):
     except Exception as e:
         print(f"[Document Download] Error downloading file for user {user}: {e}")
         return jsonify({"error": f"Failed to download document: {str(e)}"}), 500
+
+# === Multi-Model AI Endpoints ===
+
+@app.route("/api/models", methods=["GET"])
+def get_available_models():
+    """Get list of available AI models"""
+    try:
+        models = multi_model_service.get_available_models()
+        current_model = multi_model_service.get_current_model_info()
+        
+        return jsonify({
+            "success": True,
+            "available_models": models,
+            "current_model": current_model
+        })
+    except Exception as e:
+        print(f"[Models Error] {e}")
+        return jsonify({"error": "Failed to get models"}), 500
+
+@app.route("/api/models/switch", methods=["POST"])
+def switch_model():
+    """Switch to a different AI model"""
+    user = get_user_from_token()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    try:
+        data = request.get_json()
+        model_name = data.get("model_name")
+        
+        if not model_name:
+            return jsonify({"error": "Model name is required"}), 400
+        
+        success, message = multi_model_service.switch_model(model_name)
+        
+        if success:
+            current_model = multi_model_service.get_current_model_info()
+            return jsonify({
+                "success": True,
+                "message": message,
+                "current_model": current_model
+            })
+        else:
+            return jsonify({"error": message}), 400
+            
+    except Exception as e:
+        print(f"[Model Switch Error] {e}")
+        return jsonify({"error": "Failed to switch model"}), 500
+
+@app.route("/api/models/generate-text", methods=["POST"])
+def generate_text():
+    """Generate text using the current AI model"""
+    user = get_user_from_token()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    try:
+        data = request.get_json()
+        messages = data.get("messages", [])
+        temperature = data.get("temperature", 0.5)
+        top_p = data.get("top_p", 0.7)
+        max_tokens = data.get("max_tokens", 500)
+        
+        if not messages:
+            return jsonify({"error": "Messages are required"}), 400
+        
+        success, response = multi_model_service.generate_text(
+            messages, temperature, top_p, max_tokens
+        )
+        
+        if success:
+            return jsonify({"success": True, "response": response, "model": multi_model_service.get_current_model_info()})
+        else:
+            return jsonify({"error": response}), 400
+            
+    except Exception as e:
+        print(f"[Text Generation Error] {e}")
+        return jsonify({"error": "Failed to generate text"}), 500
+
+@app.route("/api/models/generate-image", methods=["POST"])
+def generate_image():
+    """Generate image using Stable Diffusion"""
+    user = get_user_from_token()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    try:
+        data = request.get_json()
+        prompt = data.get("prompt")
+        width = data.get("width", 512)
+        height = data.get("height", 512)
+        steps = data.get("steps", 25)
+        cfg_scale = data.get("cfg_scale", 8)
+        seed = data.get("seed")
+        
+        if not prompt:
+            return jsonify({"error": "Prompt is required"}), 400
+        
+        success, response = multi_model_service.generate_image(
+            prompt, width, height, steps, cfg_scale, seed
+        )
+        
+        if success:
+            # Check if response is a dict (expected) or string (error case)
+            if isinstance(response, dict):
+                return jsonify({
+                    "success": True,
+                    "image_data": response.get("image_data"),
+                    "seed": response.get("seed"),
+                    "prompt": response.get("prompt"),
+                    "model": multi_model_service.get_current_model_info()
+                })
+            else:
+                # Response is likely a string error message
+                return jsonify({"error": str(response)}), 400
+        else:
+            # Check if the response contains a request_id for status checking
+            if isinstance(response, str) and "longer than expected" in response:
+                # Try to extract request_id from the multi_model_service
+                if hasattr(multi_model_service, '_last_request_id'):
+                    return jsonify({
+                        "error": response,
+                        "request_id": multi_model_service._last_request_id,
+                        "can_check_status": True
+                    }), 202  # 202 Accepted - request is being processed
+            
+            return jsonify({"error": response}), 400
+            
+    except Exception as e:
+        print(f"[Image Generation Error] {e}")
+        return jsonify({"error": "Failed to generate image"}), 500
+
+@app.route("/api/models/check-image-status/<request_id>", methods=["GET"])
+def check_image_status(request_id):
+    """Check the status of an image generation request"""
+    user = get_user_from_token()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    try:
+        # Check status using Theta API
+        status_url = f"https://ondemand.thetaedgecloud.com/infer_request/{request_id}"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {os.getenv('THETA_API_KEY')}"
+        }
+        
+        response = requests.get(status_url, headers=headers, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        
+        if "body" in data and "infer_requests" in data["body"]:
+            infer_requests = data["body"]["infer_requests"]
+            if infer_requests and len(infer_requests) > 0:
+                infer_request = infer_requests[0]
+                state = infer_request.get("state")
+                
+                if state == "succeeded" or state == "success":
+                    # Extract image data
+                    if "output" in infer_request and infer_request["output"]:
+                        if "images" in infer_request["output"] and infer_request["output"]["images"]:
+                            image_data = infer_request["output"]["images"][0]
+                            return jsonify({
+                                "success": True,
+                                "status": "completed",
+                                "image_data": image_data,
+                                "request_id": request_id
+                            })
+                
+                return jsonify({
+                    "success": True,
+                    "status": state,
+                    "request_id": request_id
+                })
+        
+        return jsonify({"error": "Invalid response format"}), 500
+        
+    except Exception as e:
+        print(f"[Image Status Check Error] {e}")
+        return jsonify({"error": "Failed to check image status"}), 500
 
 @app.route("/api/documents/clear-vectorstore", methods=["DELETE"])
 def clear_user_vectorstore():

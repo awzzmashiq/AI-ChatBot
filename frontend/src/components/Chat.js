@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, Settings, FileText, LogOut, Plus, Sparkles } from 'lucide-react';
+import { Menu, Settings, FileText, LogOut, Plus, Sparkles, Brain, Palette } from 'lucide-react';
 import ChatMessage from './ChatMessage';
 import InputBar from './InputBar';
 import Sidebar from './Sidebar';
 import Documents from './Documents';
 import StorageSettings from './StorageSettings';
+import ModelSelector from './ModelSelector';
+import ImageGenerator from './ImageGenerator';
 import { useTheme } from '../contexts/ThemeContext';
 import config from '../config';
 
@@ -17,6 +19,9 @@ function Chat({ user, onLogout }) {
     const [sidebarOpen, setSidebarOpen] = useState(false); // Default closed for mobile-first
     const [showDocuments, setShowDocuments] = useState(false);
     const [showStorageSettings, setShowStorageSettings] = useState(false);
+    const [showModelSelector, setShowModelSelector] = useState(false);
+    const [showImageGenerator, setShowImageGenerator] = useState(false);
+    const [currentModel, setCurrentModel] = useState(null);
     const [isUploading, setIsUploading] = useState(false);
     const [recording, setRecording] = useState(false);
     const [funMode, setFunMode] = useState(false);
@@ -271,6 +276,11 @@ function Chat({ user, onLogout }) {
         }
     };
 
+    const handleModelChange = (newModel) => {
+        setCurrentModel(newModel);
+        console.log('[Chat] Model changed to:', newModel);
+    };
+
     const handleLogout = async () => {
         try {
             const apiBaseUrl = config.getApiBaseUrl();
@@ -394,6 +404,28 @@ function Chat({ user, onLogout }) {
                                 <FileText className="w-5 h-5" />
                             </motion.button>
 
+                            {/* Model Selector */}
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => setShowModelSelector(true)}
+                                className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                title="AI Model Selection"
+                            >
+                                <Brain className="w-5 h-5" />
+                            </motion.button>
+
+                            {/* Image Generator */}
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => setShowImageGenerator(true)}
+                                className="p-2 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
+                                title="AI Image Generation"
+                            >
+                                <Palette className="w-5 h-5" />
+                            </motion.button>
+
                             {/* Storage Settings */}
                             <motion.button
                                 whileHover={{ scale: 1.05 }}
@@ -488,6 +520,51 @@ function Chat({ user, onLogout }) {
                 )}
                 {showStorageSettings && (
                     <StorageSettings onClose={() => setShowStorageSettings(false)} />
+                )}
+                {showModelSelector && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+                        onClick={() => setShowModelSelector(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.95, y: 20 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+                        >
+                            <ModelSelector 
+                                onModelChange={handleModelChange}
+                                currentModel={currentModel}
+                                onClose={() => setShowModelSelector(false)}
+                            />
+                        </motion.div>
+                    </motion.div>
+                )}
+                {showImageGenerator && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+                        onClick={() => setShowImageGenerator(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.95, y: 20 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+                        >
+                            <ImageGenerator 
+                                currentModel={currentModel}
+                                onClose={() => setShowImageGenerator(false)}
+                            />
+                        </motion.div>
+                    </motion.div>
                 )}
             </AnimatePresence>
 
