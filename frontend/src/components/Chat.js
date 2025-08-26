@@ -29,6 +29,7 @@ function Chat({ user, onLogout }) {
     const [funMode, setFunMode] = useState(false);
     const [voiceMode, setVoiceMode] = useState(false);
     const [voiceConversationActive, setVoiceConversationActive] = useState(false);
+    const [currentVoiceMode, setCurrentVoiceMode] = useState('text'); // 'text' or 'assistant'
     
     const { isDark, toggleTheme } = useTheme();
     const bottomRef = useRef();
@@ -308,7 +309,7 @@ function Chat({ user, onLogout }) {
         setTimeout(poll, 2000);
     };
 
-    const toggleRecording = async () => {
+    const toggleRecording = async (mode = 'text') => {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             window.alert('Could not access microphone');
             return;
@@ -317,48 +318,61 @@ function Chat({ user, onLogout }) {
         if (recording) {
             mediaRecorderRef.current?.stop();
             setRecording(false);
-        } else {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorderRef.current = new MediaRecorder(stream);
-                chunksRef.current = [];
+            return;
+        }
 
-                mediaRecorderRef.current.ondataavailable = (e) => {
-                    chunksRef.current.push(e.data);
-                };
+        // Handle different voice modes
+        if (mode === 'assistant') {
+            // Voice-to-voice mode - activate the voice assistant
+            setVoiceMode(true);
+            setVoiceConversationActive(true);
+            setCurrentVoiceMode('assistant');
+            console.log('Activating voice conversation mode');
+            return;
+        }
 
-                mediaRecorderRef.current.onstop = async () => {
-                    const audioBlob = new Blob(chunksRef.current, { type: 'audio/wav' });
-                    const formData = new FormData();
-                    formData.append('file', audioBlob, 'recording.wav');
+        // Voice-to-text mode - use the existing recording logic
+        setCurrentVoiceMode('text');
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorderRef.current = new MediaRecorder(stream);
+            chunksRef.current = [];
+
+            mediaRecorderRef.current.ondataavailable = (e) => {
+                chunksRef.current.push(e.data);
+            };
+
+            mediaRecorderRef.current.onstop = async () => {
+                const audioBlob = new Blob(chunksRef.current, { type: 'audio/wav' });
+                const formData = new FormData();
+                formData.append('file', audioBlob, 'recording.wav');
+                
+                try {
+                    const apiBaseUrl = config.getApiBaseUrl();
+                    const res = await fetch(`${apiBaseUrl}/api/audio?session_id=${currentSessionId}`, {
+                        method: 'POST',
+                        credentials: 'include',
+                        body: formData
+                    });
                     
-                    try {
-                        const apiBaseUrl = config.getApiBaseUrl();
-                        const res = await fetch(`${apiBaseUrl}/api/audio?session_id=${currentSessionId}`, {
-                            method: 'POST',
-                            credentials: 'include',
-                            body: formData
-                        });
-                        
-                        if (!res.ok) throw new Error('Audio processing failed');
-                        
-                        const data = await res.json();
-                        if (data.messages && data.messages.length > 0) {
-                            // Add the messages to the chat
-                            setChat(prev => [...prev, ...data.messages]);
-                        }
-                    } catch (err) {
-                        console.error('Audio processing error:', err);
-                        window.alert('Could not process audio');
+                    if (!res.ok) throw new Error('Audio processing failed');
+                    
+                    const data = await res.json();
+                    if (data.messages && data.messages.length > 0) {
+                        // Add the messages to the chat
+                        setChat(prev => [...prev, ...data.messages]);
                     }
-                };
+                } catch (err) {
+                    console.error('Audio processing error:', err);
+                    window.alert('Could not process audio');
+                }
+            };
 
-                mediaRecorderRef.current.start();
-                setRecording(true);
-            } catch (err) {
-                console.error('Recording error:', err);
-                window.alert('Could not start recording');
-            }
+            mediaRecorderRef.current.start();
+            setRecording(true);
+        } catch (err) {
+            console.error('Recording error:', err);
+            window.alert('Could not start recording');
         }
     };
 
@@ -761,6 +775,7 @@ function Chat({ user, onLogout }) {
                         isUploading={isUploading}
                         recording={recording}
                         currentModel={currentModel}
+                        currentVoiceMode={currentVoiceMode}
                     />
                 )}
             </div>
