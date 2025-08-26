@@ -1,0 +1,27 @@
+# Voice-to-Voice Feature Dependencies
+# Add these to your existing requirements.txt
+
+# Speech-to-Text (Whisper)
+openai-whisper==20231117
+faster-whisper==0.10.0  # More efficient alternative
+
+# Text-to-Speech (Coqui TTS)
+TTS==0.20.6
+torch==2.1.0
+torchaudio==2.1.0
+
+# Audio processing
+pydub==0.25.1
+scipy==1.11.4
+librosa==0.10.1
+
+# Backblaze B2 storage
+b2sdk==1.19.0
+
+# WebSocket support for real-time communication
+python-socketio==5.10.0
+flask-socketio==5.3.6
+
+# Audio format conversion
+ffmpeg-python==0.2.0
+

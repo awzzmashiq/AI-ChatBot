@@ -21,6 +21,14 @@ from functools import wraps
 from flask import request, Response
 import os
 
+# Import voice routes
+try:
+    from simple_voice_routes import voice_bp
+    VOICE_ENABLED = True
+except ImportError as e:
+    print(f"Voice functionality disabled: {e}")
+    VOICE_ENABLED = False
+
 # JWT and auth
 from jose import JWTError, jwt
 import datetime
@@ -78,6 +86,13 @@ app.secret_key = JWT_SECRET  # Secret key for session (also used for JWT signing
 #CORS(app, supports_credentials=True, resources={r"/*": {"origins": ["http://localhost:3000", "http://127.0.0.1:3000"]}})
 CORS(app, supports_credentials=True)
 print("[Flask] CORS configured for localhost:3000")
+
+# Register voice routes if available
+if VOICE_ENABLED:
+    app.register_blueprint(voice_bp)
+    print("[Flask] Voice-to-voice functionality enabled")
+else:
+    print("[Flask] Voice-to-voice functionality disabled")
 
 # Apply basic auth to all routes except login/signup
 @app.before_request
@@ -1098,7 +1113,7 @@ def chat():
             
             return jsonify({"messages": [error_msg]})
         
-        # Use the multi-model service for image generation
+        # Handle image generation with immediate response and async processing
         try:
             # Extract image prompt from the message
             prompt = message.replace("generate image", "").replace("create image", "").replace("draw", "").replace("picture of", "").replace("image of", "").strip()
@@ -1107,14 +1122,14 @@ def chat():
             
             print(f"[Chat] Detected image generation request: {prompt}")
             
-            # Generate image using multi-model service
+            # Start image generation (non-blocking)
             success, response = multi_model_service.generate_image(prompt)
             
             if success:
-                # Create assistant message with image data
+                # Image generated successfully
                 assistant_msg = {
                     "role": "assistant", 
-                    "content": f"I've generated an image based on your request: '{prompt}'. Here's the generated image:",
+                    "content": f"I've generated an image based on your request: '{prompt}'",
                     "image_data": response["image_data"],
                     "image_prompt": prompt
                 }
@@ -1124,16 +1139,36 @@ def chat():
                 
                 return jsonify({"messages": [assistant_msg]})
             else:
-                # Image generation failed
-                error_msg = {
-                    "role": "assistant", 
-                    "content": f"Sorry, I couldn't generate an image for '{prompt}'. Error: {response}"
-                }
-                conv.append({"role": "user", "content": message})
-                conv.append(error_msg)
-                save_conversation(user, session_id)
-                
-                return jsonify({"messages": [error_msg]})
+                # Image is still processing - return immediate response with processing status
+                if "longer than expected" in response:
+                    # Start async processing and return immediate response
+                    processing_msg = {
+                        "role": "assistant", 
+                        "content": f"I'm generating an image for '{prompt}'...",
+                        "is_generating": True,
+                        "image_prompt": prompt,
+                        "request_id": getattr(multi_model_service, '_last_request_id', None)
+                    }
+                    conv.append({"role": "user", "content": message})
+                    conv.append(processing_msg)
+                    save_conversation(user, session_id)
+                    
+                    return jsonify({
+                        "messages": [processing_msg],
+                        "is_processing": True,
+                        "request_id": getattr(multi_model_service, '_last_request_id', None)
+                    })
+                else:
+                    # Other error
+                    error_msg = {
+                        "role": "assistant", 
+                        "content": f"Sorry, I couldn't generate an image for '{prompt}'. Error: {response}"
+                    }
+                    conv.append({"role": "user", "content": message})
+                    conv.append(error_msg)
+                    save_conversation(user, session_id)
+                    
+                    return jsonify({"messages": [error_msg]})
                 
         except Exception as e:
             print(f"[Chat] Image generation error: {e}")

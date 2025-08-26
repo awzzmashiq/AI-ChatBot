@@ -10,7 +10,8 @@ function InputBar({
     onVoiceToggle, 
     isLoading, 
     isUploading, 
-    recording 
+    recording,
+    currentModel 
 }) {
     const textareaRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -90,7 +91,11 @@ function InputBar({
                                 onKeyDown={handleKeyDown}
                                 onFocus={() => setIsFocused(true)}
                                 onBlur={() => setIsFocused(false)}
-                                placeholder="Ask ValiNul anything..."
+                                placeholder={
+                                    currentModel?.type === 'theta_image' 
+                                        ? "Generate an image or ask anything... (e.g., 'cat riding bicycle')" 
+                                        : "Ask ValiNul anything..."
+                                }
                                 className="w-full bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 resize-none border-none outline-none text-base leading-6 max-h-[120px]"
                                 rows="1"
                                 disabled={isLoading}

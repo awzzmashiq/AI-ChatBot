@@ -710,7 +710,7 @@ def get_chat_interface_for_user(username):
         )
 
 
-        keywords = ["explain", "chapter", "lesson", "book", "pdf", "context", "derive", "summarize", "science", "history", "english", "math", "Tamil"]
+        keywords = ["explain", "chapter", "lesson", "book", "pdf", "context", "derive", "summarize", "science", "history", "english", "math"]
         #docs = retriever.get_relevant_documents(updated_message)
         docs = retriever.invoke(updated_message)
 

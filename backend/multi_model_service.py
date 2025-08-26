@@ -20,7 +20,9 @@ class MultiModelService:
                 "api_key": os.getenv("THETA_API_KEY"),
                 "type": "theta",
                 "display_name": "🦙 Llama 3.1 70B",
-                "description": "Advanced language model for complex reasoning"
+                "description": "Advanced language model for complex reasoning",
+                "default_max_tokens": 2000,
+                "default_temperature": 0.7
             },
             "deepseek_r1": {
                 "url": "https://ondemand.thetaedgecloud.com/infer_request/deepseek_r1/completions",
@@ -100,7 +102,7 @@ class MultiModelService:
             "type": model_config["type"]
         }
 
-    def generate_text(self, messages, temperature=0.5, top_p=0.7, max_tokens=500):
+    def generate_text(self, messages, temperature=0.5, top_p=0.7, max_tokens=2000):
         """Generate text response using current model"""
         model_config = self.models[self.current_model]
         
