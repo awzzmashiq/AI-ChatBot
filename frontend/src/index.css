@@ -11,12 +11,19 @@
     font-family: 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Prevent zoom on input focus on iOS */
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
   }
   
   body {
     @apply bg-white dark:bg-black text-gray-900 dark:text-white;
     margin: 0;
     padding: 0;
+    /* Prevent horizontal scroll on mobile */
+    overflow-x: hidden;
+    /* Better touch scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
   }
   
   * {
@@ -38,6 +45,97 @@
   
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-gray-400 dark:bg-gray-500;
+  }
+
+  /* Mobile-specific improvements */
+  @media (max-width: 768px) {
+    /* Improve touch targets */
+    button, [role="button"], input, select, textarea {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    
+    /* Better text readability on small screens */
+    body {
+      font-size: 16px; /* Prevents zoom on iOS */
+      line-height: 1.5;
+    }
+    
+    /* Improve form elements on mobile */
+    input, textarea, select {
+      font-size: 16px; /* Prevents zoom on iOS */
+      -webkit-appearance: none;
+      border-radius: 8px;
+    }
+    
+    /* Better button spacing on mobile */
+    button + button {
+      margin-left: 8px;
+    }
+  }
+
+  /* Landscape orientation adjustments */
+  @media (max-width: 768px) and (orientation: landscape) {
+    /* Reduce padding and margins for landscape */
+    .landscape-compact {
+      padding: 8px !important;
+      margin: 4px !important;
+    }
+    
+    /* Smaller text for landscape */
+    .landscape-compact h1, .landscape-compact h2, .landscape-compact h3 {
+      font-size: 0.9em !important;
+    }
+    
+    .landscape-compact p, .landscape-compact span {
+      font-size: 0.8em !important;
+    }
+  }
+
+  /* Very small screens (320px and below) */
+  @media (max-width: 320px) {
+    body {
+      font-size: 14px;
+    }
+    
+    /* Stack elements vertically on very small screens */
+    .xs-stack {
+      flex-direction: column !important;
+      align-items: stretch !important;
+    }
+    
+    .xs-stack > * {
+      margin: 4px 0 !important;
+      width: 100% !important;
+    }
+  }
+
+  /* Medium screens (tablets) */
+  @media (min-width: 768px) and (max-width: 1024px) {
+    /* Tablet-specific adjustments */
+    .tablet-optimized {
+      padding: 16px;
+    }
+    
+    /* Better touch targets for tablets */
+    button, [role="button"] {
+      min-height: 48px;
+      min-width: 48px;
+    }
+  }
+
+  /* Large screens (desktop) */
+  @media (min-width: 1025px) {
+    /* Desktop-specific enhancements */
+    .desktop-enhanced {
+      padding: 24px;
+    }
+    
+    /* Hover effects only on desktop */
+    .hover-only-desktop:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
   }
 }
 
@@ -70,6 +168,131 @@
     50% {
       opacity: 0.7;
     }
+  }
+
+  /* Mobile-first responsive utilities */
+  .mobile-first {
+    /* Base mobile styles */
+    padding: 12px;
+    margin: 8px;
+    font-size: 14px;
+  }
+  
+  .mobile-first.sm {
+    /* Small screens and up */
+    @media (min-width: 640px) {
+      padding: 16px;
+      margin: 12px;
+      font-size: 16px;
+    }
+  }
+  
+  .mobile-first.md {
+    /* Medium screens and up */
+    @media (min-width: 768px) {
+      padding: 20px;
+      margin: 16px;
+      font-size: 18px;
+    }
+  }
+  
+  .mobile-first.lg {
+    /* Large screens and up */
+    @media (min-width: 1024px) {
+      padding: 24px;
+      margin: 20px;
+      font-size: 20px;
+    }
+  }
+
+  /* Touch-friendly button styles */
+  .touch-friendly {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  
+  .touch-friendly:active {
+    transform: scale(0.98);
+  }
+  
+  .touch-friendly:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+  }
+
+  /* Mobile navigation styles */
+  .mobile-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid #e5e7eb;
+    padding: 8px 16px;
+    z-index: 1000;
+  }
+  
+  .dark .mobile-nav {
+    background: rgba(0, 0, 0, 0.95);
+    border-top-color: #374151;
+  }
+
+  /* Responsive grid layouts */
+  .responsive-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: 1fr;
+  }
+  
+  @media (min-width: 640px) {
+    .responsive-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .responsive-grid {
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+  }
+
+  /* Mobile-friendly modal styles */
+  .mobile-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  
+  .mobile-modal-content {
+    background: white;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  }
+  
+  .dark .mobile-modal-content {
+    background: #111827;
+    color: white;
   }
 }
 
@@ -110,7 +333,52 @@
       transition-duration: 0.01ms !important;
     }
   }
+
+  /* Mobile-specific utilities */
+  .mobile-only {
+    @media (min-width: 768px) {
+      display: none !important;
+    }
+  }
   
+  .desktop-only {
+    @media (max-width: 767px) {
+      display: none !important;
+    }
+  }
+  
+  .touch-device {
+    /* Styles for touch devices */
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  
+  .no-touch-device {
+    /* Styles for non-touch devices */
+    cursor: default;
+  }
+
+  /* Responsive spacing utilities */
+  .space-responsive {
+    margin: 8px;
+    padding: 12px;
+  }
+  
+  @media (min-width: 640px) {
+    .space-responsive {
+      margin: 12px;
+      padding: 16px;
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .space-responsive {
+      margin: 16px;
+      padding: 20px;
+    }
+  }
+
   /* Print styles */
   @media print {
     .print\:hidden {
@@ -131,4 +399,72 @@
 .message, .user-message, .assistant-message,
 .sidebar-container, .session-item, .new-chat-button {
   /* These classes are now handled by Tailwind */
+}
+
+/* Mobile-specific overrides */
+@media (max-width: 768px) {
+  /* Ensure modals are full-screen on mobile */
+  .modal-mobile-full {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: none !important;
+    max-height: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+  
+  /* Better touch scrolling */
+  .scroll-touch {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+  
+  /* Prevent text selection on mobile */
+  .no-select-mobile {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  
+  /* Mobile-friendly shadows */
+  .shadow-mobile {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* Dark mode mobile optimizations */
+@media (max-width: 768px) {
+  .dark .mobile-nav {
+    background: rgba(17, 24, 39, 0.95);
+  }
+  
+  .dark .mobile-modal-content {
+    background: #111827;
+    border: 1px solid #374151;
+  }
+}
+
+/* High DPI display support */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .high-dpi {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+}
+
+/* Landscape orientation specific styles */
+@media (max-width: 768px) and (orientation: landscape) {
+  .landscape-optimized {
+    padding: 8px !important;
+    margin: 4px !important;
+  }
+  
+  .landscape-optimized .header {
+    padding: 8px 16px !important;
+  }
+  
+  .landscape-optimized .content {
+    padding: 8px !important;
+  }
 }

@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import config from '../config';
 
-function StorageSettings({ onClose }) {
+function StorageSettings({ onClose, isMobile = false }) {
     const [preferences, setPreferences] = useState({ storage: 'local' });
     const [effectiveProvider, setEffectiveProvider] = useState('local');
     const [isPreferredAvailable, setIsPreferredAvailable] = useState(true);
@@ -183,13 +183,13 @@ function StorageSettings({ onClose }) {
                 exit={{ opacity: 0 }}
                 className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
             >
-                <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 flex items-center gap-3">
+                <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 sm:p-8 flex items-center gap-3 max-w-sm mx-auto">
                     <motion.div
                         animate={{ rotate: 360 }}
                         transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                        className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full"
+                        className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full flex-shrink-0"
                     />
-                    <span className="text-gray-900 dark:text-white">Loading storage settings...</span>
+                    <span className="text-gray-900 dark:text-white text-sm sm:text-base">Loading storage settings...</span>
                 </div>
             </motion.div>
         );
@@ -200,7 +200,7 @@ function StorageSettings({ onClose }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50"
             onClick={onClose}
         >
             <motion.div
@@ -208,19 +208,23 @@ function StorageSettings({ onClose }) {
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
                 onClick={(e) => e.stopPropagation()}
-                className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
+                className={`bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden ${
+                    isMobile 
+                        ? 'w-full h-full max-h-screen' 
+                        : 'w-full max-w-2xl max-h-[90vh]'
+                }`}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/50 rounded-xl flex items-center justify-center">
-                            <Settings className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                <div className="flex items-center justify-between p-3 sm:p-6 border-b border-gray-200 dark:border-gray-800">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-purple-100 dark:bg-purple-900/50 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
                         </div>
-                        <div>
-                            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                        <div className="min-w-0 flex-1">
+                            <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white truncate">
                                 Storage Settings
                             </h2>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
                                 Configure your document storage preferences
                             </p>
                         </div>
@@ -230,43 +234,43 @@ function StorageSettings({ onClose }) {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={onClose}
-                        className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                        className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
                     >
                         <X className="w-5 h-5" />
                     </motion.button>
                 </div>
 
-                <div className="overflow-y-auto p-6 space-y-6">
+                <div className="overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-6 max-h-[calc(100vh-120px)] sm:max-h-[calc(90vh-120px)]">
                     {/* Current Status */}
-                    <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4">
-                        <h3 className="font-medium text-gray-900 dark:text-white mb-3">Current Status</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-3 sm:p-4">
+                        <h3 className="font-medium text-gray-900 dark:text-white mb-3 text-sm sm:text-base">Current Status</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
                                 <div className="flex items-center gap-2">
-                                    <Database className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                    <Database className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                                    <span className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white">
                                         Active Provider
                                     </span>
                                 </div>
-                                <p className="text-lg font-semibold text-gray-900 dark:text-white mt-1 capitalize">
+                                <p className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mt-1 capitalize">
                                     {effectiveProvider.replace('_', ' ')}
                                 </p>
                             </div>
                             
                             <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
                                 <div className="flex items-center gap-2">
-                                    <Shield className="w-4 h-4 text-green-600 dark:text-green-400" />
-                                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                    <Shield className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                                    <span className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white">
                                         Status
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-2 mt-1">
                                     {isPreferredAvailable ? (
-                                        <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
+                                        <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
                                     ) : (
-                                        <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                                        <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
                                     )}
-                                    <span className="text-sm text-gray-900 dark:text-white">
+                                    <span className="text-xs sm:text-sm text-gray-900 dark:text-white">
                                         {isPreferredAvailable ? 'Available' : 'Fallback Mode'}
                                     </span>
                                 </div>
@@ -276,12 +280,13 @@ function StorageSettings({ onClose }) {
 
                     {/* Storage Options */}
                     <div>
-                        <h3 className="font-medium text-gray-900 dark:text-white mb-4">Storage Providers</h3>
+                        <h3 className="font-medium text-gray-900 dark:text-white mb-4 text-sm sm:text-base">Storage Providers</h3>
                         <div className="space-y-3">
                             {/* Local Storage */}
                             <motion.div
                                 whileHover={{ scale: 1.01 }}
-                                className={`border-2 rounded-xl p-4 cursor-pointer transition-all ${
+                                whileTap={{ scale: 0.98 }}
+                                className={`border-2 rounded-xl p-3 sm:p-4 cursor-pointer transition-all touch-manipulation ${
                                     preferences.storage === 'local'
                                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                                         : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
@@ -289,29 +294,28 @@ function StorageSettings({ onClose }) {
                                 onClick={() => handleProviderChange('local')}
                             >
                                 <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                                            <HardDrive className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center flex-shrink-0">
+                                            <HardDrive className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600 dark:text-gray-400" />
                                         </div>
-                                        <div>
-                                            <h4 className="font-medium text-gray-900 dark:text-white">Local Storage</h4>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                        <div className="min-w-0 flex-1">
+                                            <h4 className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">Local Storage</h4>
+                                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                                                 Store documents on the server
                                             </p>
                                         </div>
                                     </div>
                                     {preferences.storage === 'local' && (
-                                        <CheckCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                        <CheckCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
                                     )}
                                 </div>
                             </motion.div>
 
-
-
                             {/* Google Drive */}
                             <motion.div
                                 whileHover={{ scale: 1.01 }}
-                                className={`border-2 rounded-xl p-4 cursor-pointer transition-all ${
+                                whileTap={{ scale: 0.98 }}
+                                className={`border-2 rounded-xl p-3 sm:p-4 cursor-pointer transition-all touch-manipulation ${
                                     preferences.storage === 'google_drive'
                                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                                         : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
@@ -319,18 +323,18 @@ function StorageSettings({ onClose }) {
                                 onClick={() => handleProviderChange('google_drive')}
                             >
                                 <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center">
-                                            <Cloud className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center flex-shrink-0">
+                                            <Cloud className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
                                         </div>
-                                        <div>
-                                            <h4 className="font-medium text-gray-900 dark:text-white">Google Drive</h4>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                        <div className="min-w-0 flex-1">
+                                            <h4 className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">Google Drive</h4>
+                                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                                                 Store documents in your Google Drive
                                             </p>
                                             {googleDriveStatus.is_authenticated && (
                                                 <div className="flex items-center gap-2 mt-1">
-                                                    <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
+                                                    <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
                                                     <span className="text-xs text-green-600 dark:text-green-400">
                                                         Authenticated
                                                     </span>
@@ -338,7 +342,7 @@ function StorageSettings({ onClose }) {
                                             )}
                                             {!googleDriveStatus.credentials_available && (
                                                 <div className="flex items-center gap-2 mt-1">
-                                                    <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                                                    <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
                                                     <span className="text-xs text-yellow-600 dark:text-yellow-400">
                                                         Setup Required
                                                     </span>
@@ -346,7 +350,7 @@ function StorageSettings({ onClose }) {
                                             )}
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 flex-shrink-0">
                                         {preferences.storage === 'google_drive' && (
                                             <CheckCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                                         )}
@@ -358,7 +362,7 @@ function StorageSettings({ onClose }) {
                                                     e.stopPropagation();
                                                     handleGoogleDriveDisconnect();
                                                 }}
-                                                className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors touch-manipulation"
                                                 title="Disconnect Google Drive"
                                             >
                                                 <Unlink className="w-4 h-4" />
@@ -371,20 +375,20 @@ function StorageSettings({ onClose }) {
                         
                         {/* Google Drive Setup Info */}
                         {!googleDriveStatus.credentials_available && (
-                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
-                                <div className="flex items-start gap-3">
-                                    <div className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-3 sm:p-4 mt-3">
+                                <div className="flex items-start gap-2 sm:gap-3">
+                                    <div className="w-4 h-4 sm:w-5 sm:h-5 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                                         <span className="text-white text-xs font-bold">i</span>
                                     </div>
-                                    <div className="flex-1">
-                                        <h4 className="font-medium text-blue-800 dark:text-blue-200">
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="font-medium text-blue-800 dark:text-blue-200 text-sm sm:text-base">
                                             Google Drive Setup Required
                                         </h4>
-                                        <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                                        <p className="text-xs sm:text-sm text-blue-700 dark:text-blue-300 mt-1">
                                             To use Google Drive storage, you need to set up OAuth2 credentials. 
                                             This requires creating a Google Cloud project and enabling the Google Drive API.
                                         </p>
-                                        <div className="mt-3 text-xs text-blue-600 dark:text-blue-400">
+                                        <div className="mt-2 sm:mt-3 text-xs text-blue-600 dark:text-blue-400">
                                             <strong>Current Status:</strong> credentials.json not found
                                         </div>
                                     </div>
@@ -395,14 +399,14 @@ function StorageSettings({ onClose }) {
 
                     {/* Migration */}
                     {effectiveProvider !== preferences.storage && (
-                        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4">
-                            <div className="flex items-start gap-3">
-                                <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5" />
-                                <div className="flex-1">
-                                    <h4 className="font-medium text-yellow-800 dark:text-yellow-200">
+                        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-3 sm:p-4">
+                            <div className="flex items-start gap-2 sm:gap-3">
+                                <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="font-medium text-yellow-800 dark:text-yellow-200 text-sm sm:text-base">
                                         Migration Available
                                     </h4>
-                                    <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+                                    <p className="text-xs sm:text-sm text-yellow-700 dark:text-yellow-300 mt-1">
                                         Your preferred storage ({preferences.storage}) is not available. 
                                         Currently using {effectiveProvider}. You can migrate your data when ready.
                                     </p>
@@ -411,7 +415,7 @@ function StorageSettings({ onClose }) {
                                         whileTap={{ scale: 0.98 }}
                                         onClick={() => handleMigration(preferences.storage)}
                                         disabled={isMigrating}
-                                        className="mt-3 flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-yellow-400 text-white rounded-lg transition-colors disabled:cursor-not-allowed"
+                                        className="mt-2 sm:mt-3 flex items-center gap-2 px-3 sm:px-4 py-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-yellow-400 text-white rounded-lg transition-colors disabled:cursor-not-allowed text-sm touch-manipulation"
                                     >
                                         {isMigrating ? (
                                             <>
@@ -437,18 +441,18 @@ function StorageSettings({ onClose }) {
 
                     {/* Google Drive Setup Instructions */}
                     {!googleDriveStatus.is_authenticated && (
-                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
-                            <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
+                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-3 sm:p-4">
+                            <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2 text-sm sm:text-base">
                                 Google Drive Setup
                             </h4>
-                            <p className="text-sm text-blue-700 dark:text-blue-300 mb-3">
+                            <p className="text-xs sm:text-sm text-blue-700 dark:text-blue-300 mb-3">
                                 To use Google Drive storage, you need to authenticate with your Google account.
                             </p>
                             <motion.button
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
                                 onClick={() => setShowAuthModal(true)}
-                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm touch-manipulation"
                             >
                                 <Link className="w-4 h-4" />
                                 Setup Google Drive
@@ -465,7 +469,7 @@ function StorageSettings({ onClose }) {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-60"
+                        className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-60"
                         onClick={() => setShowAuthModal(false)}
                     >
                         <motion.div
@@ -473,10 +477,14 @@ function StorageSettings({ onClose }) {
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.95, opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md p-6"
+                            className={`bg-white dark:bg-gray-900 rounded-2xl shadow-2xl ${
+                                isMobile 
+                                    ? 'w-full max-w-sm mx-auto' 
+                                    : 'w-full max-w-md'
+                            } p-4 sm:p-6`}
                         >
-                            <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            <div className="flex items-center justify-between mb-4 sm:mb-6">
+                                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
                                     Authenticate Google Drive
                                 </h3>
                                 <button
@@ -487,9 +495,9 @@ function StorageSettings({ onClose }) {
                                 </button>
                             </div>
                             
-                            <div className="space-y-4">
+                            <div className="space-y-3 sm:space-y-4">
                                 <div>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                                    <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-2 sm:mb-3">
                                         1. Click the button below to open Google's authorization page
                                     </p>
                                     <motion.a
@@ -498,7 +506,7 @@ function StorageSettings({ onClose }) {
                                         href={getAuthUrl()}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                                        className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm touch-manipulation"
                                     >
                                         <Key className="w-4 h-4" />
                                         Authorize Google Drive
@@ -506,7 +514,7 @@ function StorageSettings({ onClose }) {
                                 </div>
                                 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                         2. Paste the authorization code here:
                                     </label>
                                     <input
@@ -514,17 +522,17 @@ function StorageSettings({ onClose }) {
                                         value={authCode}
                                         onChange={(e) => setAuthCode(e.target.value)}
                                         placeholder="Authorization code"
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                     />
                                 </div>
                                 
-                                <div className="flex gap-3 pt-4">
+                                <div className="flex gap-2 sm:gap-3 pt-3 sm:pt-4">
                                     <motion.button
                                         whileHover={{ scale: 1.02 }}
                                         whileTap={{ scale: 0.98 }}
                                         onClick={handleGoogleDriveAuth}
                                         disabled={!authCode.trim()}
-                                        className="flex-1 py-2 px-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg transition-colors disabled:cursor-not-allowed"
+                                        className="flex-1 py-2 px-3 sm:px-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg transition-colors disabled:cursor-not-allowed text-sm touch-manipulation"
                                     >
                                         Complete Setup
                                     </motion.button>
@@ -533,7 +541,7 @@ function StorageSettings({ onClose }) {
                                         whileHover={{ scale: 1.02 }}
                                         whileTap={{ scale: 0.98 }}
                                         onClick={() => setShowAuthModal(false)}
-                                        className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                        className="px-3 sm:px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors text-sm touch-manipulation"
                                     >
                                         Cancel
                                     </motion.button>

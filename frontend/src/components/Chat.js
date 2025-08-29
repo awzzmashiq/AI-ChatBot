@@ -12,7 +12,7 @@ import SimpleVoiceAssistant from './SimpleVoiceAssistant';
 import { useTheme } from '../contexts/ThemeContext';
 import config from '../config';
 
-function Chat({ user, onLogout }) {
+function Chat({ user, onLogout, isMobile = false, orientation = 'portrait' }) {
     const [chat, setChat] = useState([]);
     const [messageInput, setMessageInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -860,7 +860,9 @@ function Chat({ user, onLogout }) {
                             animate={{ x: 0 }}
                             exit={{ x: -300 }}
                             transition={{ type: "spring", damping: 30, stiffness: 400 }}
-                            className="fixed left-0 top-0 bottom-0 w-80 z-50 lg:relative lg:z-auto"
+                            className={`fixed left-0 top-0 bottom-0 z-50 lg:relative lg:z-auto ${
+                                isMobile ? 'w-full sm:w-80' : 'w-80'
+                            }`}
                         >
                             <Sidebar
                                 user={user}
@@ -868,6 +870,7 @@ function Chat({ user, onLogout }) {
                                 onSessionChange={handleSessionChange}
                                 onNewChat={handleNewChat}
                                 onClose={() => setSidebarOpen(false)}
+                                isMobile={isMobile}
                             />
                         </motion.div>
                     </>
@@ -877,77 +880,84 @@ function Chat({ user, onLogout }) {
             {/* Main Chat Area */}
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Header */}
-                <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 py-3">
+                <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-2 sm:px-4 py-2 sm:py-3">
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                             <motion.button
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
                                 onClick={toggleSidebar}
-                                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors touch-manipulation"
                                 aria-label="Toggle sidebar"
                             >
                                 <Menu className="w-5 h-5" />
                             </motion.button>
                             
-                            <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                                    <Sparkles className="w-4 h-4 text-white" />
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                                 </div>
-                                <div>
-                                    <h1 className="text-xl font-bold text-gray-900 dark:text-white">ValiNul</h1>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">AI Assistant</p>
+                                <div className="min-w-0 flex-1">
+                                    <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white truncate">ValiNul</h1>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">AI Assistant</p>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                            {/* Voice Mode Toggle */}
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={toggleVoiceMode}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors flex items-center gap-1 ${
-                                    voiceMode
-                                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                                }`}
-                                title="Toggle voice-to-voice mode"
-                            >
-                                {voiceMode ? (
-                                    <>
-                                        <Headphones className="w-3 h-3" />
-                                        Voice Mode
-                                    </>
-                                ) : (
-                                    <>
-                                        <MessageCircle className="w-3 h-3" />
-                                        Text Mode
-                                    </>
-                                )}
-                            </motion.button>
+                        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                            {/* Voice Mode Toggle - Hide on very small screens */}
+                            {!isMobile || window.innerWidth > 480 ? (
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={toggleVoiceMode}
+                                    className={`px-2 sm:px-3 py-1.5 text-xs font-medium rounded-full transition-colors flex items-center gap-1 touch-manipulation ${
+                                        voiceMode
+                                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                                    }`}
+                                    title="Toggle voice-to-voice mode"
+                                >
+                                    {voiceMode ? (
+                                        <>
+                                            <Headphones className="w-3 h-3" />
+                                            <span className="hidden sm:inline">Voice Mode</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <MessageCircle className="w-3 h-3" />
+                                            <span className="hidden sm:inline">Text Mode</span>
+                                        </>
+                                    )}
+                                </motion.button>
+                            ) : null}
 
-                            {/* Fun Mode Toggle */}
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={() => setFunMode(!funMode)}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                                    funMode
-                                        ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
-                                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                                }`}
-                                title="Toggle fun mode for witty responses"
-                            >
-                                {funMode ? '🎭 Fun Mode' : '📖 Regular Mode'}
-                            </motion.button>
+                            {/* Fun Mode Toggle - Hide on very small screens */}
+                            {!isMobile || window.innerWidth > 480 ? (
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => setFunMode(!funMode)}
+                                    className={`px-2 sm:px-3 py-1.5 text-xs font-medium rounded-full transition-colors touch-manipulation ${
+                                        funMode
+                                            ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                                    }`}
+                                    title="Toggle fun mode for witty responses"
+                                >
+                                    {funMode ? '🎭' : '📖'}
+                                    <span className="hidden sm:inline ml-1">
+                                        {funMode ? 'Fun Mode' : 'Regular Mode'}
+                                    </span>
+                                </motion.button>
+                            ) : null}
 
                             {/* Theme Toggle */}
                             <motion.button
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
                                 onClick={toggleTheme}
-                                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors touch-manipulation"
                                 title="Toggle theme"
                             >
                                 {isDark ? '☀️' : '🌙'}
@@ -958,7 +968,7 @@ function Chat({ user, onLogout }) {
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
                                 onClick={() => setShowDocuments(true)}
-                                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors touch-manipulation"
                                 title="View documents"
                             >
                                 <FileText className="w-5 h-5" />
@@ -969,29 +979,34 @@ function Chat({ user, onLogout }) {
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
                                 onClick={() => setShowModelSelector(true)}
-                                className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors touch-manipulation"
                                 title="AI Model Selection"
                             >
                                 <Brain className="w-5 h-5" />
                             </motion.button>
 
-                            {/* Current Model Indicator */}
-                            <div className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-lg">
-                                {currentModel ? (
-                                    <span className="flex items-center gap-1">
-                                        {currentModel.type === 'theta_image' ? '🎨' : '🤖'} {currentModel.display_name || 'Model'}
-                                    </span>
-                                ) : (
-                                    'Loading...'
-                                )}
-                            </div>
+                            {/* Current Model Indicator - Hide on very small screens */}
+                            {!isMobile || window.innerWidth > 480 ? (
+                                <div className="px-2 sm:px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-lg">
+                                    {currentModel ? (
+                                        <span className="flex items-center gap-1">
+                                            {currentModel.type === 'theta_image' ? '🎨' : '🤖'} 
+                                            <span className="hidden sm:inline">
+                                                {currentModel.display_name || 'Model'}
+                                            </span>
+                                        </span>
+                                    ) : (
+                                        'Loading...'
+                                    )}
+                                </div>
+                            ) : null}
 
                             {/* Storage Settings */}
                             <motion.button
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
                                 onClick={() => setShowStorageSettings(true)}
-                                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors touch-manipulation"
                                 title="Storage settings"
                             >
                                 <Settings className="w-5 h-5" />
@@ -1002,7 +1017,7 @@ function Chat({ user, onLogout }) {
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
                                 onClick={handleLogout}
-                                className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors touch-manipulation"
                                 title="Logout"
                             >
                                 <LogOut className="w-5 h-5" />
@@ -1013,28 +1028,28 @@ function Chat({ user, onLogout }) {
 
                 {/* Messages Area */}
                 <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950">
-                    <div className="max-w-4xl mx-auto px-4 py-6">
+                    <div className="max-w-4xl mx-auto px-2 sm:px-4 py-4 sm:py-6">
                         <AnimatePresence>
                             {chat.length === 0 ? (
                                 <motion.div
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    className="text-center py-20"
+                                    className="text-center py-12 sm:py-20"
                                 >
-                                    <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                                        <Sparkles className="w-8 h-8 text-white" />
+                                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-6">
+                                        <Sparkles className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
                                     </div>
-                                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                                    <h3 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-2">
                                         Welcome to ValiNul
                                     </h3>
-                                    <p className="text-gray-600 dark:text-gray-400 mb-8 max-w-md mx-auto">
+                                    <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mb-6 sm:mb-8 max-w-md mx-auto px-4">
                                         Your AI assistant ready to help with anything. Start a conversation or upload a document to get started.
                                     </p>
                                     <motion.button
                                         whileHover={{ scale: 1.05 }}
-                                        whileTap={{ scale: 0.95 }}
+                                        whileTap={{ scale: 0.98 }}
                                         onClick={() => fileInputRef.current?.click()}
-                                        className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-medium transition-colors shadow-lg hover:shadow-xl"
+                                        className="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-medium transition-colors shadow-lg hover:shadow-xl text-sm sm:text-base touch-manipulation"
                                     >
                                         <Plus className="w-4 h-4" />
                                         Upload Document
@@ -1047,6 +1062,7 @@ function Chat({ user, onLogout }) {
                                             key={message.id || index} 
                                             message={message} 
                                             isNewMessage={newMessageIds.has(message.id)}
+                                            isMobile={isMobile}
                                         />
                                     ))}
                                     
@@ -1054,6 +1070,7 @@ function Chat({ user, onLogout }) {
                                         <ChatMessage 
                                             message={{ role: 'assistant', content: '' }} 
                                             isTyping={true}
+                                            isMobile={isMobile}
                                         />
                                     )}
                                 </>
@@ -1069,15 +1086,13 @@ function Chat({ user, onLogout }) {
                     <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="px-4 py-2 text-center"
+                        className="px-2 sm:px-4 py-2 text-center"
                     >
-                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-sm">
+                        <div className="inline-flex items-center gap-2 px-2 sm:px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-xs sm:text-sm">
                             🎨 <span>Image Generation Mode Active</span>
                         </div>
                     </motion.div>
                 )}
-
-
 
                 {/* Voice Assistant Overlay */}
                 <AnimatePresence>
@@ -1086,25 +1101,27 @@ function Chat({ user, onLogout }) {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center"
+                            className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4"
                         >
                             <motion.div
                                 initial={{ scale: 0.9, opacity: 0 }}
                                 animate={{ scale: 1, opacity: 1 }}
                                 exit={{ scale: 0.9, opacity: 0 }}
-                                className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700 max-w-md w-full mx-4"
+                                className={`bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full mx-auto ${
+                                    isMobile ? 'max-w-sm' : 'max-w-md'
+                                }`}
                             >
                                 {/* Voice Assistant Header */}
-                                <div className="border-b border-gray-200 dark:border-gray-700 p-6 text-center">
-                                    <div className="flex items-center justify-center gap-3 mb-2">
-                                        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                                            <Headphones className="w-4 h-4 text-white" />
+                                <div className="border-b border-gray-200 dark:border-gray-700 p-4 sm:p-6 text-center">
+                                    <div className="flex items-center justify-center gap-2 sm:gap-3 mb-2">
+                                        <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                                            <Headphones className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                                         </div>
-                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                                        <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
                                             Voice Assistant
                                         </h2>
                                     </div>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                                         Speak naturally like you're talking to Siri or Alexa
                                     </p>
                                 </div>
@@ -1117,15 +1134,16 @@ function Chat({ user, onLogout }) {
                                     isActive={voiceConversationActive}
                                     onToggleActive={() => setVoiceConversationActive(!voiceConversationActive)}
                                     sessionId={currentSessionId}
+                                    isMobile={isMobile}
                                 />
 
                                 {/* Close Button */}
-                                <div className="border-t border-gray-200 dark:border-gray-700 p-4 text-center">
+                                <div className="border-t border-gray-200 dark:border-gray-700 p-3 sm:p-4 text-center">
                                     <motion.button
                                         whileHover={{ scale: 1.02 }}
                                         whileTap={{ scale: 0.98 }}
                                         onClick={toggleVoiceMode}
-                                        className="w-full px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                                        className="w-full px-3 sm:px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors touch-manipulation text-sm sm:text-base"
                                     >
                                         Exit Voice Mode
                                     </motion.button>
@@ -1148,6 +1166,7 @@ function Chat({ user, onLogout }) {
                         recording={recording}
                         currentModel={currentModel}
                         currentVoiceMode={currentVoiceMode}
+                        isMobile={isMobile}
                     />
                 )}
             </div>
@@ -1155,17 +1174,17 @@ function Chat({ user, onLogout }) {
             {/* Modals */}
             <AnimatePresence>
                 {showDocuments && (
-                    <Documents onClose={() => setShowDocuments(false)} />
+                    <Documents onClose={() => setShowDocuments(false)} isMobile={isMobile} />
                 )}
                 {showStorageSettings && (
-                    <StorageSettings onClose={() => setShowStorageSettings(false)} />
+                    <StorageSettings onClose={() => setShowStorageSettings(false)} isMobile={isMobile} />
                 )}
                 {showModelSelector && (
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+                        className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-2 sm:p-4"
                         onClick={() => setShowModelSelector(false)}
                     >
                         <motion.div
@@ -1173,12 +1192,15 @@ function Chat({ user, onLogout }) {
                             animate={{ scale: 1, y: 0 }}
                             exit={{ scale: 0.95, y: 20 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+                            className={`w-full overflow-y-auto ${
+                                isMobile ? 'max-h-screen' : 'max-w-2xl max-h-[90vh]'
+                            }`}
                         >
                             <ModelSelector 
                                 onModelChange={handleModelChange}
                                 currentModel={currentModel}
                                 onClose={() => setShowModelSelector(false)}
+                                isMobile={isMobile}
                             />
                         </motion.div>
                     </motion.div>

@@ -7,6 +7,32 @@ import config from './config';
 
 function App() {
   const [user, setUser] = useState(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [orientation, setOrientation] = useState('portrait');
+
+  // Mobile detection and responsive handling
+  useEffect(() => {
+    const checkDevice = () => {
+      const mobile = window.innerWidth <= 768;
+      const currentOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+      
+      setIsMobile(mobile);
+      setOrientation(currentOrientation);
+    };
+
+    // Initial check
+    checkDevice();
+
+    // Listen for resize and orientation changes
+    window.addEventListener('resize', checkDevice);
+    window.addEventListener('orientationchange', checkDevice);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('resize', checkDevice);
+      window.removeEventListener('orientationchange', checkDevice);
+    };
+  }, []);
 
   useEffect(() => {
     // Check if already logged in (session active)
@@ -39,11 +65,20 @@ function App() {
 
   return (
     <ThemeProvider>
-      <div className="App">
+      <div className={`App ${isMobile ? 'mobile' : 'desktop'} ${orientation}`}>
         {user ? (
-          <Chat user={user} onLogout={handleLogout} />
+          <Chat 
+            user={user} 
+            onLogout={handleLogout} 
+            isMobile={isMobile}
+            orientation={orientation}
+          />
         ) : (
-          <Login onLoginSuccess={handleLoginSuccess} />
+          <Login 
+            onLoginSuccess={handleLoginSuccess} 
+            isMobile={isMobile}
+            orientation={orientation}
+          />
         )}
       </div>
     </ThemeProvider>
