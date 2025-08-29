@@ -1000,13 +1000,23 @@ def get_upload_status():
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
+    print(f"[DEBUG] Chat endpoint called at {datetime.datetime.now()}")
     user = get_user_from_token()
     if not user:
+        print(f"[DEBUG] Unauthorized - no valid token")
         return jsonify({"error": "Unauthorized"}), 401
+    
     data = request.get_json()
+    print(f"[DEBUG] Request data: {data}")
+    
     message = (data.get("message") or "").strip()
     session_id = data.get("session_id", "default")
+    model = data.get("model", "default")
+    
+    print(f"[DEBUG] Processing message: '{message}' for session: {session_id} with model: {model}")
+    
     if not message:
+        print(f"[DEBUG] No message provided")
         return jsonify({"error": "No message provided"}), 400
     conv = get_conversation(user, session_id)
     profile = extract_user_profile(conv, default_name=user.split('@')[0].capitalize())
@@ -1068,7 +1078,7 @@ def chat():
         system_content = (
             "You are a knowledgeable teacher assistant. You strictly rely on the provided content to answer the question.\n"
             "If the context does NOT contain enough information, politely say you couldn't find relevant info in the material, and then give a brief general explanation.\n"
-            "You can understand and respond in English, Tamil, or Arabic as appropriate.\n"
+            "You can understand and respond appropriately.\n"
             f"Context:\n{docs_text}\n\n"
             f"Chat History:\n{chat_history_str}"
         )
@@ -1076,7 +1086,7 @@ def chat():
         system_content = (
             "You are a helpful teacher assistant. Answer the user's question clearly and truthfully.\n"
             "If the question refers to uploaded documents but no relevant info is found, apologize for not finding info in the material and answer generally.\n"
-            "You can understand and respond in English, Tamil, or Arabic as appropriate."
+            "You can understand and respond appropriately."
         )
     user_content = f"{context_prefix}Question: {message}"
     messages = [
@@ -1084,28 +1094,45 @@ def chat():
         {"role": "user", "content": user_content}
     ]
     # Check if this is an image generation request
-    image_keywords = ["generate image", "create image", "draw", "picture of", "image of", "generate a picture"]
-    # Also detect simple image descriptions (like "cat riding bicycle")
-    simple_image_patterns = [
-        "cat riding", "dog playing", "bird flying", "car driving", "house with", "tree in", "sunset over",
-        "mountain landscape", "beach scene", "forest path", "city skyline", "flower garden", "animal doing"
-    ]
+    image_keywords = ["generate image", "create image", "draw", "picture of", "image of", "generate a picture", "pic", "picture", "photo", "render", "sketch", "artwork", "illustration", "visual", "painting", "drawing"]
     
-    is_image_request = (
-        any(keyword in message.lower() for keyword in image_keywords) or
-        any(pattern in message.lower() for pattern in simple_image_patterns) or
-        # If message is short and descriptive, treat as image request when Stable Diffusion is selected
-        (len(message.split()) <= 8 and any(word in message.lower() for word in ["cat", "dog", "bird", "car", "house", "tree", "sun", "mountain", "beach", "forest", "city", "flower", "animal"]))
-    )
+    # Question words that suggest non-image requests
+    question_words = ["how", "what", "when", "where", "why", "who", "explain", "tell", "describe", "help", "define", "meaning", "calculate", "compute", "solve", "analyze", "compare", "understand", "learn", "study", "research", "write", "code", "program", "function", "method", "class", "variable", "data", "file", "document", "text", "message", "chat", "conversation", "talk", "read", "book", "article", "paper", "report", "summary", "analysis", "review", "comment", "feedback", "suggestion", "advice", "tip", "hint", "idea", "concept", "theory", "hypothesis", "experiment", "test", "question", "problem", "issue", "error", "fix", "solve", "think", "believe", "feel", "opinion", "difference", "similar", "same", "different", "better", "worse", "best", "worst", "time", "date", "day", "month", "year", "hour", "minute", "second", "week", "weather", "temperature"]
+    
+    # Get current model info
+    current_model = multi_model_service.get_current_model_info()
+    is_image_model = current_model["type"] in ["theta_image", "eden_image"]
+    
+    # Improved image detection logic
+    is_image_request = False
+    
+    # Direct image keywords
+    if any(keyword in message.lower() for keyword in image_keywords):
+        is_image_request = True
+    
+    # If user has image model selected and it's a short descriptive phrase without question words
+    elif is_image_model and len(message.split()) <= 15 and not any(word in message.lower() for word in question_words):
+        # This catches phrases like "khabib vs connor", "sunset over mountains", "cat riding bicycle"
+        is_image_request = True
+        
+    # Additional patterns that suggest image generation
+    elif any(pattern in message.lower() for pattern in ["vs ", " vs ", " fighting ", " battle ", " fight ", " versus "]):
+        if len(message.split()) <= 10 and not any(word in message.lower() for word in question_words):
+            is_image_request = True
+    
+    print(f"[Chat] Message: '{message}'")
+    print(f"[Chat] Is image request: {is_image_request}")
+    print(f"[Chat] Current model: {current_model}")
+    print(f"[Chat] Is image model: {is_image_model}")
     
     if is_image_request:
-        # Check if current model supports image generation
-        current_model = multi_model_service.get_current_model_info()
-        if current_model["type"] != "theta_image":
+        print(f"[Chat] Processing image generation request")
+        
+        if not is_image_model:
             # Current model doesn't support image generation
             error_msg = {
                 "role": "assistant", 
-                "content": f"I detected you want an image, but the current model ({current_model['display_name']}) doesn't support image generation. Please switch to '🎨 Stable Diffusion Turbo Vision' in the model selector (🧠 Brain icon) to generate images."
+                "content": f"🎨 I can see you want to generate an image for '{message}', but you currently have '{current_model['display_name']}' selected, which is for text conversations.\n\n✨ To generate images, please:\n1. Click the model selector (🧠 Brain icon) at the top\n2. Switch to '🎨 Stable Diffusion Turbo Vision' or '🌿 Eden AI Minimax'\n3. Then type your image request again\n\nI'll be ready to create amazing visuals for you! 🖼️"
             }
             conv.append({"role": "user", "content": message})
             conv.append(error_msg)
@@ -1124,12 +1151,21 @@ def chat():
             
             # Start image generation (non-blocking)
             success, response = multi_model_service.generate_image(prompt)
+            print(f"[Chat] Image generation result - Success: {success}, Response: {response}")
             
             if success:
                 # Image generated successfully
+                print(f"[Chat] Image generated successfully, returning image data")
+                source = response.get("source", "theta")
+                source_text = ""
+                if source == "huggingface_fallback":
+                    source_text = " (generated using HuggingFace backup service)"
+                elif source == "placeholder":
+                    source_text = " (placeholder - please try again for better quality)"
+                    
                 assistant_msg = {
                     "role": "assistant", 
-                    "content": f"I've generated an image based on your request: '{prompt}'",
+                    "content": f"🎨 Here's your generated image for: '{prompt}'{source_text}",
                     "image_data": response["image_data"],
                     "image_prompt": prompt
                 }
@@ -1142,9 +1178,10 @@ def chat():
                 # Image is still processing - return immediate response with processing status
                 if "longer than expected" in response:
                     # Start async processing and return immediate response
+                    print(f"[Chat] Image is processing, starting async polling")
                     processing_msg = {
                         "role": "assistant", 
-                        "content": f"I'm generating an image for '{prompt}'...",
+                        "content": f"🎨 Creating your image for '{prompt}'... This usually takes 30-60 seconds. ⏳\n\nI'll let you know when it's ready! Feel free to continue chatting while you wait.",
                         "is_generating": True,
                         "image_prompt": prompt,
                         "request_id": getattr(multi_model_service, '_last_request_id', None)
@@ -1160,9 +1197,10 @@ def chat():
                     })
                 else:
                     # Other error
+                    print(f"[Chat] Image generation error: {response}")
                     error_msg = {
                         "role": "assistant", 
-                        "content": f"Sorry, I couldn't generate an image for '{prompt}'. Error: {response}"
+                        "content": f"😔 I encountered an issue generating your image for '{prompt}'.\n\n🔧 {response}\n\n💡 Please try:\n- Rephrasing your request\n- Trying again in a few moments\n- Using simpler descriptions\n\nI'm here to help when you're ready to try again! ✨"
                     }
                     conv.append({"role": "user", "content": message})
                     conv.append(error_msg)
@@ -1174,13 +1212,26 @@ def chat():
             print(f"[Chat] Image generation error: {e}")
             error_msg = {
                 "role": "assistant", 
-                "content": f"Sorry, there was an error generating the image: {str(e)}"
+                "content": f"🚨 Oops! Something unexpected happened while generating your image for '{prompt}'.\n\n⚠️ Technical details: {str(e)}\n\n🔄 Please try again, and if the issue persists, let me know! I'm here to help. 💪"
             }
             conv.append({"role": "user", "content": message})
             conv.append(error_msg)
             save_conversation(user, session_id)
             
             return jsonify({"messages": [error_msg]})
+    
+    # Handle text chat
+    if is_image_model and not is_image_request:
+        # User has an image generation model selected but is trying to chat
+        error_msg = {
+            "role": "assistant", 
+            "content": f"💬 I see you have '{current_model['display_name']}' selected, which is perfect for creating images! However, it looks like you want to have a text conversation.\n\n🔄 To chat with me, please:\n1. Click the model selector (🧠 Brain icon) at the top\n2. Switch to '🦙 Llama 3.1 70B' or '🔍 Deepseek R1' for text conversations\n\n🎨 Or if you'd like to generate an image instead, try describing what you want to see (e.g., 'trump vs modi in boxing ring', 'sunset over mountains', 'cat riding bicycle').\n\nI'm here to help either way! ✨"
+        }
+        conv.append({"role": "user", "content": message})
+        conv.append(error_msg)
+        save_conversation(user, session_id)
+        
+        return jsonify({"messages": [error_msg]})
     
     # Regular text chat - use the multi-model service
     try:
@@ -1267,6 +1318,36 @@ def delete_session_endpoint(session_id):
         return jsonify({"success": True, "message": "Session deleted"})
     else:
         return jsonify({"error": "Session not found"}), 404
+
+@app.route("/api/models/check-image-status/<request_id>", methods=["GET"])
+def check_image_status(request_id):
+    """Check the status of an image generation request"""
+    user = get_user_from_token()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    try:
+        # Check image generation status using multi-model service
+        status = multi_model_service.check_image_status(request_id)
+        return jsonify(status)
+    except Exception as e:
+        print(f"[Image Status Check Error] {e}")
+        return jsonify({"error": "Failed to check image status"}), 500
+
+@app.route("/api/health", methods=["GET"])
+def health_check():
+    """Health check endpoint"""
+    return jsonify({
+        "status": "healthy",
+        "timestamp": datetime.datetime.now().isoformat(),
+        "api_keys_configured": {
+            "theta": bool(THETA_API_KEY),
+            "openai": bool(os.getenv("OPENAI_API_KEY")),
+            "google": bool(GOOGLE_CLIENT_ID)
+        },
+        "demo_mode": DEMO_MODE,
+        "voice_enabled": VOICE_ENABLED
+    })
 
 @app.route("/api/test-llm", methods=["POST"])
 def test_llm():
@@ -1577,14 +1658,15 @@ def generate_image():
         print(f"[Image Generation Error] {e}")
         return jsonify({"error": "Failed to generate image"}), 500
 
-@app.route("/api/models/check-image-status/<request_id>", methods=["GET"])
-def check_image_status(request_id):
+# Removed duplicate function - now using the one defined earlier
     """Check the status of an image generation request"""
     user = get_user_from_token()
     if not user:
         return jsonify({"error": "Unauthorized"}), 401
     
     try:
+        print(f"[Image Status Check] Checking status for request {request_id}")
+        
         # Check status using Theta API
         status_url = f"https://ondemand.thetaedgecloud.com/infer_request/{request_id}"
         headers = {
@@ -1596,30 +1678,85 @@ def check_image_status(request_id):
         response.raise_for_status()
         data = response.json()
         
+        print(f"[Image Status Check] Response: {data}")
+        
         if "body" in data and "infer_requests" in data["body"]:
             infer_requests = data["body"]["infer_requests"]
             if infer_requests and len(infer_requests) > 0:
                 infer_request = infer_requests[0]
                 state = infer_request.get("state")
                 
-                if state == "succeeded" or state == "success":
-                    # Extract image data
-                    if "output" in infer_request and infer_request["output"]:
-                        if "images" in infer_request["output"] and infer_request["output"]["images"]:
-                            image_data = infer_request["output"]["images"][0]
-                            return jsonify({
-                                "success": True,
-                                "status": "completed",
-                                "image_data": image_data,
-                                "request_id": request_id
-                            })
+                print(f"[Image Status Check] Request state: {state}")
                 
+                if state == "succeeded" or state == "success" or state == "completed":
+                    # Extract image data
+                    image_data = None
+                    
+                    if "output" in infer_request and infer_request["output"]:
+                        output = infer_request["output"]
+                        print(f"[Image Status Check] Output structure: {output}")
+                        
+                        # Method 1: Check if image is directly in output.images (base64)
+                        if "images" in output and output["images"]:
+                            image_data = output["images"][0]
+                            print("[Image Status Check] Found image data in output.images")
+                        
+                        # Method 2: Check if image is available as URL
+                        if not image_data and "image_url" in output:
+                            image_url = output["image_url"]
+                            print(f"[Image Status Check] Found image URL: {image_url}")
+                            
+                            try:
+                                print("[Image Status Check] Downloading image from URL...")
+                                img_response = requests.get(image_url, timeout=30)
+                                img_response.raise_for_status()
+                                
+                                import base64
+                                image_data = base64.b64encode(img_response.content).decode('utf-8')
+                                print("[Image Status Check] Successfully downloaded image from URL")
+                                
+                            except Exception as e:
+                                print(f"[Image Status Check] Failed to download image from URL: {e}")
+                                return jsonify({"error": f"Failed to download generated image: {str(e)}"}), 500
+                        
+                        # Method 3: Check for other image formats
+                        if not image_data:
+                            for key, value in output.items():
+                                if "image" in key.lower() and value:
+                                    print(f"[Image Status Check] Found potential image data in key: {key}")
+                                    if isinstance(value, str) and value.startswith("data:image"):
+                                        image_data = value.split(",")[1]  # Extract base64 part
+                                        print("[Image Status Check] Extracted base64 image data from data URL")
+                                        break
+                                    elif isinstance(value, str) and len(value) > 100:  # Likely base64
+                                        image_data = value
+                                        print("[Image Status Check] Found base64 image data")
+                                        break
+                    
+                    if image_data:
+                        print("[Image Status Check] Image ready, returning data")
+                        return jsonify({
+                            "success": True,
+                            "status": "completed",
+                            "image_data": image_data,
+                            "request_id": request_id
+                        })
+                    else:
+                        print("[Image Status Check] No image data found in completed request")
+                        return jsonify({
+                            "success": False,
+                            "status": "completed",
+                            "error": "No image data found in completed request"
+                        }), 500
+                
+                # Return current status for other states
                 return jsonify({
                     "success": True,
                     "status": state,
                     "request_id": request_id
                 })
         
+        print("[Image Status Check] Invalid response format")
         return jsonify({"error": "Invalid response format"}), 500
         
     except Exception as e:
@@ -2257,7 +2394,7 @@ def audio_question():
         system_content = (
             "You are a knowledgeable teacher assistant. You strictly rely on the provided content to answer the question.\n"
             "If the context does NOT contain enough information, politely say you couldn't find relevant info in the material, and then provide a brief general explanation.\n"
-            "You can understand and respond in English, Tamil, or Arabic as appropriate.\n"
+            "You can understand and respond appropriately.\n"
             f"Context:\n{docs_text}\n\n"
             f"Chat History:\n{chat_history_str}"
         )
@@ -2265,7 +2402,7 @@ def audio_question():
         system_content = (
             "You are a helpful teacher assistant. Answer the user's question clearly and truthfully.\n"
             "If the question refers to the uploaded documents but no relevant info is found, apologize for not finding info and answer generally.\n"
-            "You can understand and respond in English, Tamil, or Arabic as appropriate."
+            "You can understand and respond appropriately."
         )
     user_content = f"User Name: {user_name}\nQuestion: {question_text}"
     messages = [

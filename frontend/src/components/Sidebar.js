@@ -20,10 +20,23 @@ function Sidebar({ user, currentSessionId, onSessionChange, onNewChat, onClose }
     const [editingSession, setEditingSession] = useState(null);
     const [newSessionName, setNewSessionName] = useState('');
     const [isCreating, setIsCreating] = useState(false);
+    const [updatingSessions, setUpdatingSessions] = useState(new Set());
     const { isDark } = useTheme();
 
     useEffect(() => {
         fetchSessions();
+        
+        // Listen for session renamed events
+        const handleSessionRenamed = () => {
+            console.log('[Sidebar] Session renamed event received, refreshing sessions');
+            fetchSessions();
+        };
+        
+        window.addEventListener('sessionRenamed', handleSessionRenamed);
+        
+        return () => {
+            window.removeEventListener('sessionRenamed', handleSessionRenamed);
+        };
     }, []);
 
     const fetchSessions = async () => {
@@ -32,10 +45,103 @@ function Sidebar({ user, currentSessionId, onSessionChange, onNewChat, onClose }
             const res = await fetch(`${apiBaseUrl}/api/sessions`, { credentials: 'include' });
             if (!res.ok) throw new Error('Failed to fetch sessions');
             const data = await res.json();
-            setSessions(data.sessions || []);
+            
+            // Sort sessions to ensure most recently active ones are at the top
+            const sortedSessions = (data.sessions || []).sort((a, b) => {
+                // First, check if we have stored last access times in localStorage
+                const lastAccessA = localStorage.getItem(`sessionLastAccess_${a.id}`) || a.created_at;
+                const lastAccessB = localStorage.getItem(`sessionLastAccess_${b.id}`) || b.created_at;
+                
+                // Sort by most recent access time first
+                const timeA = new Date(lastAccessA).getTime();
+                const timeB = new Date(lastAccessB).getTime();
+                
+                if (timeA !== timeB) {
+                    return timeB - timeA; // Most recent first
+                }
+                
+                // If access times are equal, sort by creation time (newest first)
+                const createdA = new Date(a.created_at || 0).getTime();
+                const createdB = new Date(b.created_at || 0).getTime();
+                return createdB - createdA;
+            });
+            
+            setSessions(sortedSessions);
         } catch (err) {
             console.error('Fetch sessions error:', err);
         }
+    };
+
+    // Function to update session name based on conversation context
+    const updateSessionName = async (sessionId, newName) => {
+        try {
+            // Mark session as updating
+            setUpdatingSessions(prev => new Set(prev).add(sessionId));
+            
+            // Update local state immediately for better UX
+            setSessions(prev => prev.map(session => 
+                session.id === sessionId 
+                    ? { ...session, name: newName }
+                    : session
+            ));
+            
+            const apiBaseUrl = config.getApiBaseUrl();
+            const res = await fetch(`${apiBaseUrl}/api/sessions/${sessionId}/rename`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ name: newName })
+            });
+            
+            if (!res.ok) throw new Error('Failed to rename session');
+            
+            const data = await res.json();
+            if (data.success) {
+                // Refresh from server to ensure consistency
+                fetchSessions();
+            }
+        } catch (err) {
+            console.error('Update session name error:', err);
+            // Revert local state on error
+            fetchSessions();
+        } finally {
+            // Remove updating state
+            setUpdatingSessions(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(sessionId);
+                return newSet;
+            });
+        }
+    };
+
+    // Expose the updateSessionName function to parent component
+    useEffect(() => {
+        if (window.updateSessionName) {
+            window.updateSessionName = updateSessionName;
+        }
+    }, []);
+
+    const handleSessionClick = (sessionId) => {
+        // Update last access time for this session
+        const now = new Date().toISOString();
+        localStorage.setItem(`sessionLastAccess_${sessionId}`, now);
+        
+        // Update the session order immediately for better UX
+        setSessions(prev => {
+            const updatedSessions = [...prev];
+            const sessionIndex = updatedSessions.findIndex(s => s.id === sessionId);
+            
+            if (sessionIndex > 0) {
+                // Move the selected session to the top
+                const [selectedSession] = updatedSessions.splice(sessionIndex, 1);
+                updatedSessions.unshift(selectedSession);
+            }
+            
+            return updatedSessions;
+        });
+        
+        // Call the original session change handler
+        onSessionChange(sessionId);
     };
 
     const handleNewChat = async () => {
@@ -53,6 +159,10 @@ function Sidebar({ user, currentSessionId, onSessionChange, onNewChat, onClose }
             
             const data = await res.json();
             if (data.session) {
+                // Set access time for new session
+                const now = new Date().toISOString();
+                localStorage.setItem(`sessionLastAccess_${data.session.id}`, now);
+                
                 onNewChat(data.session);
                 fetchSessions();
             }
@@ -221,7 +331,7 @@ function Sidebar({ user, currentSessionId, onSessionChange, onNewChat, onClose }
                                             ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
                                             : 'hover:bg-gray-50 dark:hover:bg-gray-800'
                                     }`}
-                                    onClick={() => onSessionChange(session.id)}
+                                    onClick={() => handleSessionClick(session.id)}
                                 >
                                     {editingSession === session.id ? (
                                         <div className="flex items-center gap-2">
@@ -272,6 +382,15 @@ function Sidebar({ user, currentSessionId, onSessionChange, onNewChat, onClose }
                                                             : 'text-gray-900 dark:text-white'
                                                     }`}>
                                                         {session.name}
+                                                        {updatingSessions.has(session.id) && (
+                                                            <span className="ml-2 inline-flex items-center" title="Updating name...">
+                                                                <motion.div
+                                                                    animate={{ rotate: 360 }}
+                                                                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                                                    className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full"
+                                                                />
+                                                            </span>
+                                                        )}
                                                     </h3>
                                                     <div className="flex items-center gap-1 mt-1">
                                                         <Calendar className="w-3 h-3 text-gray-400" />

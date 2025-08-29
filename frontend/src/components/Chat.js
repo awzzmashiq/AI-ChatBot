@@ -16,7 +16,11 @@ function Chat({ user, onLogout }) {
     const [chat, setChat] = useState([]);
     const [messageInput, setMessageInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [currentSessionId, setCurrentSessionId] = useState('default');
+    const [currentSessionId, setCurrentSessionId] = useState(() => {
+        // Try to restore last session from localStorage, fallback to 'default'
+        const saved = localStorage.getItem(`lastSessionId_${user}`);
+        return saved || 'default';
+    });
     const [sidebarOpen, setSidebarOpen] = useState(false); // Default closed for mobile-first
     const [showDocuments, setShowDocuments] = useState(false);
     const [showStorageSettings, setShowStorageSettings] = useState(false);
@@ -30,6 +34,7 @@ function Chat({ user, onLogout }) {
     const [voiceMode, setVoiceMode] = useState(false);
     const [voiceConversationActive, setVoiceConversationActive] = useState(false);
     const [currentVoiceMode, setCurrentVoiceMode] = useState('text'); // 'text' or 'assistant'
+    const [newMessageIds, setNewMessageIds] = useState(new Set()); // Track which messages are new
     
     const { isDark, toggleTheme } = useTheme();
     const bottomRef = useRef();
@@ -45,9 +50,10 @@ function Chat({ user, onLogout }) {
             const data = await res.json();
             console.log('[Chat] History loaded:', data);
             if (data.messages) {
-                // Ensure all messages have proper content
-                const processedMessages = data.messages.map(msg => ({
+                // Ensure all messages have proper content and add IDs if missing
+                const processedMessages = data.messages.map((msg, index) => ({
                     ...msg,
+                    id: msg.id || `history_${index}_${Date.now()}`, // Add ID for history messages
                     content: typeof msg.content === 'string' 
                         ? msg.content 
                         : typeof msg.content === 'object' 
@@ -56,21 +62,90 @@ function Chat({ user, onLogout }) {
                 }));
                 console.log('[Chat] Processed history messages:', processedMessages);
                 setChat(processedMessages);
+                
+                // Clear new message IDs when loading history (these are old messages)
+                setNewMessageIds(new Set());
             }
         } catch (err) {
             console.error('History load error:', err);
         }
     };
 
-    // Load chat history when session changes
+    // Initialize session on component mount
     useEffect(() => {
-        loadHistory();
+        const initializeSession = async () => {
+            // If currentSessionId is 'default', try to load the most recent session
+            if (currentSessionId === 'default') {
+                try {
+                    const apiBaseUrl = config.getApiBaseUrl();
+                    const res = await fetch(`${apiBaseUrl}/api/sessions`, { credentials: 'include' });
+                    if (res.ok) {
+                        const data = await res.json();
+                        const sessions = data.sessions || [];
+                        
+                        // If there are existing sessions, load the most recent one
+                        if (sessions.length > 0) {
+                            const mostRecentSession = sessions[sessions.length - 1]; // Newest is usually last
+                            console.log('[Chat] Loading most recent session:', mostRecentSession.id);
+                            setCurrentSessionId(mostRecentSession.id);
+                            localStorage.setItem(`lastSessionId_${user}`, mostRecentSession.id);
+                            return; // Don't load history twice
+                        }
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch sessions for initialization:', err);
+                }
+            }
+            
+            // Load history for current session
+            loadHistory();
+        };
+        
+        initializeSession();
+    }, []); // Only run on mount
+
+    // Load chat history when session changes (but not on initial mount)
+    useEffect(() => {
+        if (currentSessionId !== 'default') {
+            loadHistory();
+        }
     }, [currentSessionId]);
 
     // Scroll to bottom whenever chat updates
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [chat]);
+
+    // Set up global functions for session management
+    useEffect(() => {
+        // Make refreshSessions available globally for session naming
+        window.refreshSessions = () => {
+            // This will be called by the sidebar to refresh sessions
+            console.log('[Chat] Global refreshSessions called');
+        };
+        
+        // Also make a function to trigger sidebar refresh
+        window.triggerSidebarRefresh = () => {
+            console.log('[Chat] Triggering sidebar refresh');
+            // Dispatch a custom event that the sidebar can listen to
+            window.dispatchEvent(new CustomEvent('sessionRenamed'));
+        };
+        
+        // Function to remove messages from new messages set after typing effect
+        window.removeFromNewMessages = (messageId) => {
+            setNewMessageIds(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(messageId);
+                return newSet;
+            });
+        };
+        
+        return () => {
+            delete window.refreshSessions;
+            delete window.triggerSidebarRefresh;
+            delete window.removeFromNewMessages;
+        };
+    }, []);
 
     // Close sidebar on large screens by default
     useEffect(() => {
@@ -89,11 +164,107 @@ function Chat({ user, onLogout }) {
         const startTime = Date.now();
         console.log('[Frontend] Starting chat request at:', new Date().toISOString());
         
-        const userMessage = { role: 'user', content: messageInput };
+        const userMessage = { 
+            role: 'user', 
+            content: messageInput,
+            id: Date.now().toString() // Add unique ID
+        };
         
         setChat(prev => [...prev, userMessage]);
+        const currentMessage = messageInput; // Store the message before clearing
         setMessageInput('');
         setIsLoading(true);
+        
+        // If this is the first message and we're using the default session, create a new session
+        let sessionToUse = currentSessionId;
+        if (chat.length === 0 && currentSessionId === 'default') {
+            try {
+                console.log('[Chat] Creating new session for first message');
+                const apiBaseUrl = config.getApiBaseUrl();
+                const res = await fetch(`${apiBaseUrl}/api/sessions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include'
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.session) {
+                        sessionToUse = data.session.id;
+                        setCurrentSessionId(sessionToUse);
+                        localStorage.setItem(`lastSessionId_${user}`, sessionToUse);
+                        // Set access time for new session
+                        const now = new Date().toISOString();
+                        localStorage.setItem(`sessionLastAccess_${sessionToUse}`, now);
+                        console.log('[Chat] New session created:', sessionToUse);
+                        
+                        // Trigger sidebar refresh to show the new session
+                        if (window.triggerSidebarRefresh) {
+                            window.triggerSidebarRefresh();
+                        }
+                    }
+                } else {
+                    console.error('[Chat] Failed to create new session');
+                }
+            } catch (err) {
+                console.error('[Chat] Error creating new session:', err);
+            }
+        }
+        
+        // Auto-name the session if this is the first message and it doesn't already have a meaningful name
+        console.log('[Chat] Session naming check:', { 
+            chatLength: chat.length, 
+            currentSessionId: sessionToUse, 
+            messageInput: currentMessage.substring(0, 50) + '...' 
+        });
+        
+        if (chat.length === 0 && sessionToUse && sessionToUse !== 'default') {
+            const autoName = generateSessionName(currentMessage);
+            console.log('[Chat] Attempting to auto-name session:', { 
+                sessionToUse, 
+                currentMessage, 
+                autoName, 
+                chatLength: chat.length 
+            });
+            
+            // Only update if the generated name is different from "New Chat"
+            if (autoName !== 'New Chat') {
+                // Update session name asynchronously
+                setTimeout(async () => {
+                    try {
+                        const apiBaseUrl = config.getApiBaseUrl();
+                        console.log('[Chat] Renaming session', sessionToUse, 'to:', autoName);
+                        
+                        const res = await fetch(`${apiBaseUrl}/api/sessions/${sessionToUse}/rename`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({ name: autoName })
+                        });
+                        
+                        if (res.ok) {
+                            console.log('[Chat] Session renamed successfully to:', autoName);
+                            // Trigger a refresh of the sidebar sessions
+                            if (window.triggerSidebarRefresh) {
+                                window.triggerSidebarRefresh();
+                            }
+                        } else {
+                            const errorData = await res.json().catch(() => ({}));
+                            console.error('[Chat] Failed to rename session:', res.status, errorData);
+                        }
+                    } catch (err) {
+                        console.error('Failed to rename session:', err);
+                    }
+                }, 1000); // Small delay to ensure message is processed
+            }
+        } else {
+            console.log('[Chat] Session naming condition NOT met:', { 
+                chatLength: chat.length, 
+                sessionToUse, 
+                isDefault: sessionToUse === 'default',
+                hasSessionId: !!sessionToUse
+            });
+        }
         
         try {
             const apiBaseUrl = config.getApiBaseUrl();
@@ -101,53 +272,160 @@ function Chat({ user, onLogout }) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ 
-                    message: messageInput,
-                    session_id: currentSessionId,
-                    fun_mode: funMode
+                body: JSON.stringify({
+                    message: currentMessage,
+                    session_id: sessionToUse,
+                    model: currentModel?.id || 'default'
                 })
             });
             
             if (!res.ok) {
-                throw new Error('Failed to send message');
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.error || `HTTP ${res.status}: ${res.statusText}`);
             }
             
             const data = await res.json();
-            const endTime = Date.now();
-            console.log(`[Frontend] Response received in ${endTime - startTime}ms`);
+            console.log('[Frontend] Chat response received at:', new Date().toISOString());
+            console.log('[Frontend] Response time:', Date.now() - startTime, 'ms');
             console.log('[Frontend] Response data:', data);
             
             if (data.messages && data.messages.length > 0) {
-                // Ensure all messages have proper content
-                const processedMessages = data.messages.map(msg => ({
-                    ...msg,
-                    content: typeof msg.content === 'string' 
-                        ? msg.content 
-                        : typeof msg.content === 'object' 
-                            ? JSON.stringify(msg.content) 
-                            : String(msg.content || '')
-                }));
-                console.log('[Frontend] Processed messages:', processedMessages);
-                setChat(prev => [...prev, ...processedMessages]);
+                const assistantMessage = data.messages[0];
                 
-                // If image is processing, start polling for updates
-                if (data.is_processing && data.request_id) {
-                    pollImageStatus(data.request_id, processedMessages[0]);
+                // Check if this is an image generation response
+                if (assistantMessage.image_data) {
+                    console.log('[Frontend] Image generation successful, adding image message');
+                    const messageId = Date.now().toString();
+                    setChat(prev => [...prev, {
+                        ...assistantMessage,
+                        timestamp: new Date().toISOString(),
+                        id: messageId
+                    }]);
+                } else if (data.is_processing && data.request_id) {
+                    console.log('[Frontend] Image is processing, starting polling for:', data.request_id);
+                    // Image is being processed, add processing message and start polling
+                    const messageId = Date.now().toString();
+                    const processingMessage = {
+                        ...assistantMessage,
+                        timestamp: new Date().toISOString(),
+                        id: messageId
+                    };
+                    
+                    setChat(prev => [...prev, processingMessage]);
+                    
+                    // Start polling for image status
+                    pollImageStatus(data.request_id, processingMessage);
+                } else {
+                    console.log('[Frontend] Regular text response, adding message');
+                    // Regular text response - add with typing effect
+                    const messageId = Date.now().toString();
+                    const messageWithTyping = {
+                        ...assistantMessage,
+                        timestamp: new Date().toISOString(),
+                        id: messageId
+                    };
+                    
+                    setChat(prev => [...prev, messageWithTyping]);
+                    
+                    // Mark this message as new for typing effect
+                    setNewMessageIds(prev => new Set([...prev, messageId]));
                 }
+            } else if (data.response) {
+                // Fallback for old response format
+                const messageId = Date.now().toString();
+                const assistantMessage = { 
+                    role: 'assistant', 
+                    content: data.response,
+                    timestamp: new Date(),
+                    id: messageId
+                };
+                
+                setChat(prev => [...prev, assistantMessage]);
+                
+                // Mark this message as new for typing effect
+                setNewMessageIds(prev => new Set([...prev, messageId]));
+            } else {
+                throw new Error('No response content received from server');
             }
+            
+            // Update session access time after successful message exchange
+            const now = new Date().toISOString();
+            localStorage.setItem(`sessionLastAccess_${sessionToUse}`, now);
         } catch (err) {
-            console.error('Send message error:', err);
-            setChat(prev => [...prev, { 
+            console.error('Chat error:', err);
+            const messageId = Date.now().toString();
+            const errorMessage = { 
                 role: 'assistant', 
-                content: 'Sorry, there was an error processing your request.' 
-            }]);
+                content: `Sorry, I encountered an error: ${err.message}. Please try again.`,
+                timestamp: new Date(),
+                isError: true,
+                id: messageId
+            };
+            
+            setChat(prev => [...prev, errorMessage]);
+            
+            // Mark this message as new for typing effect
+            setNewMessageIds(prev => new Set([...prev, messageId]));
         } finally {
             setIsLoading(false);
         }
     };
 
+    // Function to generate automatic session names based on message content
+    const generateSessionName = (message) => {
+        if (!message || typeof message !== 'string') {
+            return 'New Chat';
+        }
+        
+        const trimmedMessage = message.trim();
+        
+        // If message is empty or very short, use default name
+        if (trimmedMessage.length === 0) {
+            return 'New Chat';
+        }
+        
+        // Handle common technical topics with better names
+        const lowerMessage = trimmedMessage.toLowerCase();
+        
+        // Blockchain and crypto topics
+        if (lowerMessage.includes('blockchain')) {
+            return 'Blockchain Discussion';
+        }
+        if (lowerMessage.includes('cryptocurrency') || lowerMessage.includes('crypto')) {
+            return 'Cryptocurrency Chat';
+        }
+        if (lowerMessage.includes('bitcoin') || lowerMessage.includes('ethereum')) {
+            return 'Crypto Discussion';
+        }
+        
+        // AI and tech topics
+        if (lowerMessage.includes('artificial intelligence') || lowerMessage.includes('ai')) {
+            return 'AI Discussion';
+        }
+        if (lowerMessage.includes('machine learning') || lowerMessage.includes('ml')) {
+            return 'Machine Learning Chat';
+        }
+        if (lowerMessage.includes('programming') || lowerMessage.includes('coding')) {
+            return 'Programming Discussion';
+        }
+        
+        // If message is very short, use it directly
+        if (trimmedMessage.length <= 30) {
+            return trimmedMessage;
+        }
+        
+        // Extract first sentence or first 30 characters
+        const firstSentence = trimmedMessage.split(/[.!?]/)[0];
+        if (firstSentence && firstSentence.length <= 30 && firstSentence.length > 0) {
+            return firstSentence;
+        }
+        
+        // If still too long, truncate to 30 characters and add ellipsis
+        return trimmedMessage.substring(0, 27) + '...';
+    };
+
     const pollImageStatus = async (requestId, processingMessage) => {
-        const maxAttempts = 20; // Poll for up to 2 minutes (6s intervals)
+        const maxAttempts = 30; // Poll for up to 3 minutes (6s intervals)
         let attempts = 0;
         
         const poll = async () => {
@@ -170,6 +448,7 @@ function Chat({ user, onLogout }) {
                 
                 if (data.success && data.status === 'completed' && data.image_data) {
                     // Image is ready! Update the processing message with the actual image
+                    console.log('[Frontend] Image ready, updating message');
                     setChat(prev => prev.map(msg => 
                         msg === processingMessage ? {
                             ...msg,
@@ -179,12 +458,14 @@ function Chat({ user, onLogout }) {
                         } : msg
                     ));
                     return; // Stop polling
-                } else if (data.success && (data.status === 'processing' || data.status === 'assigned')) {
+                } else if (data.success && (data.status === 'processing' || data.status === 'assigned' || data.status === 'created' || data.status === 'queued')) {
                     // Still processing, continue polling
+                    console.log(`[Frontend] Image still processing, status: ${data.status}`);
                     if (attempts < maxAttempts) {
                         setTimeout(poll, 6000); // Poll every 6 seconds
                     } else {
                         // Max attempts reached
+                        console.log('[Frontend] Max polling attempts reached');
                         setChat(prev => prev.map(msg => 
                             msg === processingMessage ? {
                                 ...msg,
@@ -193,8 +474,9 @@ function Chat({ user, onLogout }) {
                             } : msg
                         ));
                     }
-                } else {
-                    // Failed or other status
+                } else if (data.success && data.status === 'failed') {
+                    // Failed
+                    console.log('[Frontend] Image generation failed');
                     setChat(prev => prev.map(msg => 
                         msg === processingMessage ? {
                             ...msg,
@@ -202,12 +484,37 @@ function Chat({ user, onLogout }) {
                             is_generating: false
                         } : msg
                     ));
+                } else if (data.success && data.status === 'completed' && !data.image_data) {
+                    // Completed but no image data
+                    console.log('[Frontend] Image completed but no data found');
+                    setChat(prev => prev.map(msg => 
+                        msg === processingMessage ? {
+                            ...msg,
+                            content: `Image generation completed but no image was found. Please try again.`,
+                            is_generating: false
+                        } : msg
+                    ));
+                } else {
+                    // Other status or error
+                    console.log(`[Frontend] Unexpected status: ${data.status}, error: ${data.error}`);
+                    if (attempts < maxAttempts) {
+                        setTimeout(poll, 6000); // Continue polling for unexpected states
+                    } else {
+                        setChat(prev => prev.map(msg => 
+                            msg === processingMessage ? {
+                                ...msg,
+                                content: `Image generation status unclear. Please try again.`,
+                                is_generating: false
+                            } : msg
+                        ));
+                    }
                 }
             } catch (error) {
                 console.error('[Frontend] Image status poll error:', error);
                 if (attempts < maxAttempts) {
                     setTimeout(poll, 6000); // Retry on error
                 } else {
+                    console.log('[Frontend] Max polling attempts reached after error');
                     setChat(prev => prev.map(msg => 
                         msg === processingMessage ? {
                             ...msg,
@@ -361,6 +668,24 @@ function Chat({ user, onLogout }) {
                     if (data.messages && data.messages.length > 0) {
                         // Add the messages to the chat
                         setChat(prev => [...prev, ...data.messages]);
+                        
+                        // Auto-name the session if this is the first message and it doesn't already have a meaningful name
+                        if (chat.length === 0 && currentSessionId !== 'default') {
+                            // Extract the user message content for naming
+                            const userMessage = data.messages.find(msg => msg.role === 'user');
+                            if (userMessage && userMessage.content) {
+                                const autoName = generateSessionName(userMessage.content);
+                                // Only update if the generated name is different from "New Chat"
+                                if (autoName !== 'New Chat') {
+                                    // Update session name asynchronously
+                                    setTimeout(() => {
+                                        if (window.updateSessionName) {
+                                            window.updateSessionName(currentSessionId, autoName);
+                                        }
+                                    }, 1000); // Small delay to ensure message is processed
+                                }
+                            }
+                        }
                     }
                 } catch (err) {
                     console.error('Audio processing error:', err);
@@ -398,6 +723,36 @@ function Chat({ user, onLogout }) {
         };
 
         setChat(prev => [...prev, userMsg]);
+        
+        // Auto-name the session if this is the first message and it doesn't already have a meaningful name
+        if (chat.length === 0 && currentSessionId !== 'default') {
+            const autoName = generateSessionName(transcription);
+            // Only update if the generated name is different from "New Chat"
+            if (autoName !== 'New Chat') {
+                // Update session name asynchronously
+                setTimeout(async () => {
+                    try {
+                        const apiBaseUrl = config.getApiBaseUrl();
+                        const res = await fetch(`${apiBaseUrl}/api/sessions/${currentSessionId}/rename`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({ name: autoName })
+                        });
+                        
+                        if (res.ok) {
+                            console.log('[Chat] Session renamed to:', autoName);
+                            // Trigger a refresh of the sidebar sessions
+                            if (window.triggerSidebarRefresh) {
+                                window.triggerSidebarRefresh();
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Failed to rename session:', err);
+                    }
+                }, 1000); // Small delay to ensure message is processed
+            }
+        }
     };
 
     const handleVoiceResponse = (responseText, audioUrl) => {
@@ -462,12 +817,25 @@ function Chat({ user, onLogout }) {
     };
 
     const handleSessionChange = (sessionId) => {
+        console.log('[Chat] Session changed to:', sessionId);
         setCurrentSessionId(sessionId);
+        // Save current session to localStorage for persistence across refreshes
+        localStorage.setItem(`lastSessionId_${user}`, sessionId);
+        // Update session access time to keep it at the top
+        const now = new Date().toISOString();
+        localStorage.setItem(`sessionLastAccess_${sessionId}`, now);
     };
 
     const handleNewChat = (newSession) => {
+        console.log('[Chat] Creating new chat with session:', newSession);
         setCurrentSessionId(newSession.id);
         setChat([]);
+        // Save new session to localStorage
+        localStorage.setItem(`lastSessionId_${user}`, newSession.id);
+        // Set access time for new session to keep it at the top
+        const now = new Date().toISOString();
+        localStorage.setItem(`sessionLastAccess_${newSession.id}`, now);
+        console.log('[Chat] New chat created - Session ID:', newSession.id, 'Chat length:', 0);
     };
 
     const toggleSidebar = () => {
@@ -675,7 +1043,11 @@ function Chat({ user, onLogout }) {
                             ) : (
                                 <>
                                     {chat.map((message, index) => (
-                                        <ChatMessage key={index} message={message} />
+                                        <ChatMessage 
+                                            key={message.id || index} 
+                                            message={message} 
+                                            isNewMessage={newMessageIds.has(message.id)}
+                                        />
                                     ))}
                                     
                                     {isLoading && (

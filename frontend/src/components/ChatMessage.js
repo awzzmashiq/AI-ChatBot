@@ -1,6 +1,45 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { User, Bot, Copy, CheckCheck, Volume2, VolumeX, Mic, Headphones } from 'lucide-react';
+
+// Typing effect component for simulating streaming
+function TypingMessage({ content, onComplete, isTyping = true }) {
+    const [displayedText, setDisplayedText] = useState('');
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const [isComplete, setIsComplete] = useState(false);
+
+    useEffect(() => {
+        if (!isTyping || isComplete) return;
+
+        if (currentIndex < content.length) {
+            const timer = setTimeout(() => {
+                setDisplayedText(prev => prev + content[currentIndex]);
+                setCurrentIndex(prev => prev + 1);
+            }, 15); // Much faster typing effect (15ms = very fast, 30ms = fast, 50ms = medium)
+
+            return () => clearTimeout(timer);
+        } else {
+            setIsComplete(true);
+            if (onComplete) onComplete();
+        }
+    }, [currentIndex, content, isTyping, isComplete, onComplete]);
+
+    // Reset when content changes
+    useEffect(() => {
+        setDisplayedText('');
+        setCurrentIndex(0);
+        setIsComplete(false);
+    }, [content]);
+
+    return (
+        <div className="whitespace-pre-wrap break-words">
+            {displayedText}
+            {!isComplete && isTyping && (
+                <span className="inline-block w-2 h-4 ml-1 bg-current animate-pulse" />
+            )}
+        </div>
+    );
+}
 
 // Component to properly format message content with code highlighting
 function MessageContent({ content }) {
@@ -85,7 +124,7 @@ function MessageContent({ content }) {
     );
 }
 
-function ChatMessage({ message, isTyping = false }) {
+function ChatMessage({ message, isTyping = false, isNewMessage = false }) {
     const isUser = message.role === 'user';
     const [copied, setCopied] = React.useState(false);
     const [isPlayingAudio, setIsPlayingAudio] = React.useState(false);
@@ -281,7 +320,21 @@ function ChatMessage({ message, isTyping = false }) {
                             </div>
                         ) : (
                             <div className="whitespace-pre-wrap break-words">
-                                <MessageContent content={messageContent} />
+                                {/* Use TypingMessage only for NEW assistant messages to simulate streaming */}
+                                {!isUser && isNewMessage && !message.image_data && !message.is_generating ? (
+                                    <TypingMessage 
+                                        content={messageContent} 
+                                        isTyping={true}
+                                        onComplete={() => {
+                                            // Remove from new messages after typing is complete
+                                            if (window.removeFromNewMessages && message.id) {
+                                                window.removeFromNewMessages(message.id);
+                                            }
+                                        }}
+                                    />
+                                ) : (
+                                    <MessageContent content={messageContent} />
+                                )}
                                 
                                 {/* Voice input confidence indicator */}
                                 {isVoiceInput && message.confidence !== undefined && (

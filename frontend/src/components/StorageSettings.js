@@ -306,33 +306,7 @@ function StorageSettings({ onClose }) {
                                 </div>
                             </motion.div>
 
-                            {/* Backblaze B2 Storage */}
-                            <motion.div
-                                whileHover={{ scale: 1.01 }}
-                                className={`border-2 rounded-xl p-4 cursor-pointer transition-all ${
-                                    preferences.storage === 'backblaze_b2'
-                                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                                }`}
-                                onClick={() => handleProviderChange('backblaze_b2')}
-                            >
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/50 rounded-lg flex items-center justify-center">
-                                            <Cloud className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-                                        </div>
-                                        <div>
-                                            <h4 className="font-medium text-gray-900 dark:text-white">Backblaze B2</h4>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                                High-performance cloud storage (10GB free)
-                                            </p>
-                                        </div>
-                                    </div>
-                                    {preferences.storage === 'backblaze_b2' && (
-                                        <CheckCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                                    )}
-                                </div>
-                            </motion.div>
+
 
                             {/* Google Drive */}
                             <motion.div
